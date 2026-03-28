@@ -115,12 +115,20 @@ export default function SessionsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
+  function fetchSessions() {
+    setLoading(true);
+    setError(null);
     fetch("/api/sessions")
       .then((res) => res.json())
       .then((data) => setSessions(data.sessions))
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchSessions();
+    window.addEventListener("sessions:refetch", fetchSessions);
+    return () => window.removeEventListener("sessions:refetch", fetchSessions);
   }, []);
 
   const normalized = query.trim().toLowerCase();
