@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS: { to: string; label: string }[] = [];
@@ -29,6 +30,13 @@ export default function Header() {
             </NavLink>
           ))}
         </nav>
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent("sessions:refetch"))}
+          className="ml-auto flex items-center justify-center rounded-sm border border-border bg-muted p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="再読み込み"
+        >
+          <RefreshCw size={13} />
+        </button>
       </div>
     </header>
   );
