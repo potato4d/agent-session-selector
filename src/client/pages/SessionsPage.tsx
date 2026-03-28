@@ -86,7 +86,7 @@ function SessionCard({ s }: { s: Session }) {
     <Card className="cursor-pointer rounded-none border-0 ring-0 transition-colors hover:bg-accent">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="truncate text-sm font-medium">
+          <CardTitle className="min-w-0 flex-1 truncate text-sm font-medium">
             {s.firstMessage ?? "(no message)"}
           </CardTitle>
           {s.isActive && (
