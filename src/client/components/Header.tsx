@@ -7,7 +7,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [];
 export default function Header() {
   return (
     <header className="border-b bg-background">
-      <div className="mx-auto flex max-w-2xl items-center gap-6 px-6 py-3">
+      <div className="flex w-full items-center gap-6 px-6 py-3">
         <span className="text-sm font-semibold tracking-tight">
           Agent Session Selector
         </span>
