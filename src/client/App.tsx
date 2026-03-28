@@ -7,7 +7,7 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-background">
         <Header />
-        <main>
+        <main className="flex flex-col">
           <Routes>
             <Route path="/" element={<SessionsPage />} />
           </Routes>
