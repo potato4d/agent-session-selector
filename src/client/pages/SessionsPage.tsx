@@ -24,6 +24,7 @@ interface Session {
   sessionId: string;
   project: string;
   firstMessage: string | null;
+  lastUserMessage: string | null;
   lastActivity: string;
   createdAt: string;
   isActive: boolean;
@@ -85,7 +86,7 @@ function SessionCard({ s }: { s: Session }) {
     <Card className="cursor-pointer rounded-none border-0 ring-0 transition-colors hover:bg-accent">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm font-medium">
+          <CardTitle className="min-w-0 flex-1 truncate text-sm font-medium">
             {s.firstMessage ?? "(no message)"}
           </CardTitle>
           {s.isActive && (
@@ -97,6 +98,11 @@ function SessionCard({ s }: { s: Session }) {
         <CardDescription className="truncate text-xs">
           {s.project}
         </CardDescription>
+        {s.lastUserMessage && s.lastUserMessage !== s.firstMessage && (
+          <p className="truncate text-xs text-muted-foreground/70">
+            ↩ {s.lastUserMessage}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-2">
         <CopyInput value={resumeCmd} />
@@ -115,12 +121,20 @@ export default function SessionsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
+  function fetchSessions() {
+    setLoading(true);
+    setError(null);
     fetch("/api/sessions")
       .then((res) => res.json())
       .then((data) => setSessions(data.sessions))
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchSessions();
+    window.addEventListener("sessions:refetch", fetchSessions);
+    return () => window.removeEventListener("sessions:refetch", fetchSessions);
   }, []);
 
   const normalized = query.trim().toLowerCase();
@@ -151,16 +165,21 @@ export default function SessionsPage() {
     <div className="flex flex-col">
       <Tabs defaultValue={defaultTab} className="gap-0">
         {/* Tab bar */}
-        <div className="border-b border-border bg-muted/40">
-          <TabsList className="flex h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+        <div className="scrollbar-hidden overflow-x-auto border-b border-border bg-muted/40">
+          <TabsList className="flex h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
             {loading
               ? [80, 110].map((w) => (
-                  <div key={w} className="flex h-9 items-center border-r border-border px-4">
+                  <div key={w} className="flex h-9 shrink-0 items-center border-r border-border px-4">
                     <div className="animate-pulse rounded bg-muted-foreground/20" style={{ width: w, height: 10 }} />
                   </div>
                 ))
               : projects.map((project) => (
-                  <TabsTrigger key={project} value={project} title={project} className={tabTriggerClass}>
+                  <TabsTrigger
+                    key={project}
+                    value={project}
+                    title={project}
+                    className={`${tabTriggerClass} shrink-0 flex-none`}
+                  >
                     <span className="font-mono">{shortLabel(project)}</span>
                     <span className="ml-2 text-muted-foreground/60">{grouped.get(project)!.length}</span>
                   </TabsTrigger>
