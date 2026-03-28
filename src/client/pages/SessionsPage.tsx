@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
@@ -113,6 +113,7 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     fetch("/api/sessions")
@@ -122,55 +123,95 @@ export default function SessionsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="p-6 text-muted-foreground">Loading...</p>;
-  if (error) return <p className="p-6 text-destructive">Error: {error}</p>;
+  const normalized = query.trim().toLowerCase();
+  const filtered = normalized
+    ? sessions.filter((s) =>
+        s.firstMessage?.toLowerCase().includes(normalized) ||
+        s.sessionId.toLowerCase().includes(normalized)
+      )
+    : sessions;
 
-  const grouped = sessionsByProject(sessions);
+  const grouped = sessionsByProject(filtered);
   const projects = [...grouped.keys()];
   const defaultTab = projects[0];
+
+  const tabTriggerClass = `relative h-9 rounded-none border-r border-border px-4 text-xs text-muted-foreground
+    transition-none
+    data-[state=active]:bg-background
+    data-[state=active]:text-foreground
+    data-[state=active]:shadow-none
+    data-[state=active]:after:absolute
+    data-[state=active]:after:bottom-0
+    data-[state=active]:after:left-0
+    data-[state=active]:after:right-0
+    data-[state=active]:after:h-px
+    data-[state=active]:after:bg-background`;
 
   return (
     <div className="flex flex-col">
       <Tabs defaultValue={defaultTab} className="gap-0">
-        {/* Ghostty-style tab bar */}
+        {/* Tab bar */}
         <div className="border-b border-border bg-muted/40">
           <TabsList className="flex h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-            {projects.map((project) => {
-              const count = grouped.get(project)!.length;
-              return (
-                <TabsTrigger
-                  key={project}
-                  value={project}
-                  title={project}
-                  className="relative h-9 rounded-none border-r border-border px-4 text-xs text-muted-foreground
-                    transition-none
-                    data-[state=active]:bg-background
-                    data-[state=active]:text-foreground
-                    data-[state=active]:shadow-none
-                    data-[state=active]:after:absolute
-                    data-[state=active]:after:bottom-0
-                    data-[state=active]:after:left-0
-                    data-[state=active]:after:right-0
-                    data-[state=active]:after:h-px
-                    data-[state=active]:after:bg-background"
-                >
-                  <span className="font-mono">{shortLabel(project)}</span>
-                  <span className="ml-2 text-muted-foreground/60">{count}</span>
-                </TabsTrigger>
-              );
-            })}
+            {loading
+              ? [80, 110].map((w) => (
+                  <div key={w} className="flex h-9 items-center border-r border-border px-4">
+                    <div className="animate-pulse rounded bg-muted-foreground/20" style={{ width: w, height: 10 }} />
+                  </div>
+                ))
+              : projects.map((project) => (
+                  <TabsTrigger key={project} value={project} title={project} className={tabTriggerClass}>
+                    <span className="font-mono">{shortLabel(project)}</span>
+                    <span className="ml-2 text-muted-foreground/60">{grouped.get(project)!.length}</span>
+                  </TabsTrigger>
+                ))}
           </TabsList>
         </div>
 
-        {projects.map((project) => (
-          <TabsContent key={project} value={project} className="mt-0">
-            <div className="divide-y divide-border">
-              {grouped.get(project)!.map((s) => (
-                <SessionCard key={s.sessionId} s={s} />
-              ))}
-            </div>
-          </TabsContent>
-        ))}
+        {/* Filter bar */}
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <Search size={14} className="shrink-0 text-muted-foreground" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter sessions…"
+            disabled={loading}
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none disabled:opacity-40"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="text-xs text-muted-foreground hover:text-foreground">
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="divide-y divide-border">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse space-y-3 px-4 py-4">
+                <div className="h-3 w-2/3 rounded bg-muted-foreground/20" />
+                <div className="h-3 w-1/3 rounded bg-muted-foreground/10" />
+                <div className="h-8 rounded-sm bg-muted-foreground/10" />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <p className="p-6 text-sm text-destructive">{error}</p>
+        ) : projects.length === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">No sessions found.</p>
+        ) : (
+          projects.map((project) => (
+            <TabsContent key={project} value={project} className="mt-0">
+              <div className="divide-y divide-border">
+                {grouped.get(project)!.map((s) => (
+                  <SessionCard key={s.sessionId} s={s} />
+                ))}
+              </div>
+            </TabsContent>
+          ))
+        )}
       </Tabs>
     </div>
   );

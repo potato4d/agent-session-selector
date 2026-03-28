@@ -1,9 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Sessions" },
-];
+const NAV_ITEMS: { to: string; label: string }[] = [];
 
 export default function Header() {
   return (
