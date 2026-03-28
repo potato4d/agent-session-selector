@@ -92,7 +92,7 @@ pnpm test:watch   # ウォッチモード
 
 `C--Users-foobar-Documents-repos-cc-session-selector` → `C:\Users\foobar\Documents\repos\cc-session-selector`
 
-Windows と macOS の両方の Claude 形式パスを復元できるようにしつつ、ファイルシステムを参照して `-` を含むディレクトリ名（`cc-session-selector` など）を正しく復元する（`decodeProjectPath` in `src/server/routes/sessions.ts`）。
+`~/.claude/projects` 配下のディレクトリ名は Claude の内部表現として扱い、表示用パスは JSONL や active session に入っている `cwd` を優先する。`-` は実際のディレクトリ名にも含まれるため、エンコード済みディレクトリ名の逆変換は信頼しない。
 
 ## UI の注意点
 

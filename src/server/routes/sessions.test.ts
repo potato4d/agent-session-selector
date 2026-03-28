@@ -21,6 +21,7 @@ const MOCK_JSONL = [
   JSON.stringify({
     type: "user",
     message: { role: "user", content: "hello world" },
+    cwd: "C:\\Users\\foobar\\Documents",
     uuid: "u1",
     timestamp: "2026-01-01T10:00:01.000Z",
     sessionId: "aaaa-bbbb",
@@ -123,6 +124,56 @@ describe("GET /api/sessions", () => {
     expect(session.active?.pid).toBe(1234);
   });
 
+  it("uses cwd from session JSONL for POSIX-style projects", async () => {
+    await setupMocks();
+    const fs = (await import("fs/promises")).default;
+
+    vi.mocked(fs.readdir).mockImplementation(async (p) => {
+      const s = String(p);
+      if (s.endsWith("projects")) return ["-Users-foobar-src-agent-session-selector"] as any;
+      if (s.endsWith("sessions")) return [] as any;
+      if (s.endsWith("-Users-foobar-src-agent-session-selector")) return ["aaaa-bbbb.jsonl"] as any;
+      return [] as any;
+    });
+
+    const posixJsonl = [
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "hello world" },
+        cwd: "/Users/foobar/src/agent-session-selector",
+        uuid: "u1",
+        timestamp: "2026-01-01T10:00:01.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+    ].join("\n");
+
+    const buf = Buffer.from(posixJsonl);
+    vi.mocked(fs.open).mockResolvedValue({
+      stat: async () => ({ size: buf.length }),
+      read: async (b: Buffer, offset: number, length: number, position: number) => {
+        buf.copy(b, offset, position, position + length);
+        return { bytesRead: length };
+      },
+      close: async () => {},
+    } as any);
+    vi.mocked(fs.stat).mockImplementation(async (p) => {
+      const s = String(p);
+      if (s.endsWith("-Users-foobar-src-agent-session-selector")) {
+        return { isDirectory: () => true } as any;
+      }
+      return {
+        isDirectory: () => false,
+        size: buf.length,
+        mtime: new Date("2026-01-01T10:05:00.000Z"),
+        birthtime: new Date("2026-01-01T10:00:00.000Z"),
+      } as any;
+    });
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    expect(res.body.sessions[0].project).toBe("/Users/foobar/src/agent-session-selector");
+  });
+
   it("sorts sessions by lastActivity descending", async () => {
     await setupMocks();
     const fs = (await import("fs/promises")).default;
@@ -223,5 +274,35 @@ describe("GET /api/sessions", () => {
     expect(res.status).toBe(200);
     expect(res.body.sessions[0].isActive).toBe(false);
     expect(res.body.sessions[0].active).toBeNull();
+  });
+
+  it("returns unknown project when cwd is missing", async () => {
+    await setupMocks();
+    const fs = (await import("fs/promises")).default;
+
+    const jsonlWithoutCwd = [
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "hello world" },
+        uuid: "u1",
+        timestamp: "2026-01-01T10:00:01.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+    ].join("\n");
+
+    const buf = Buffer.from(jsonlWithoutCwd);
+    vi.mocked(fs.readFile).mockRejectedValue(new Error("not found"));
+    vi.mocked(fs.open).mockResolvedValue({
+      stat: async () => ({ size: buf.length }),
+      read: async (b: Buffer, offset: number, length: number, position: number) => {
+        buf.copy(b, offset, position, position + length);
+        return { bytesRead: length };
+      },
+      close: async () => {},
+    } as any);
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    expect(res.body.sessions[0].project).toBe("(unknown project)");
   });
 });
