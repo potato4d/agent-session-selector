@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp:*)",
+      "Bash(rm \"C:\\\\Users\\\\mail\\\\Documents\\\\repos\\\\cc-session-selector\\\\.mcp.json\")",
+      "Bash(rm \"C:\\\\Users\\\\mail\\\\Documents\\\\repos\\\\cc-session-selector\\\\.claude\\\\settings.json\")",
+      "Bash(rmdir \"C:\\\\Users\\\\mail\\\\Documents\\\\repos\\\\cc-session-selector\\\\.claude\")"
+    ]
+  }
+}
