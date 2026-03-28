@@ -53,9 +53,10 @@ function CopyInput({ value }: { value: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleCopy() {
-    navigator.clipboard.writeText(value).then(() => {
-      toast.success("Copied to clipboard");
-    });
+    navigator.clipboard.writeText(value).then(
+      () => toast.success("Copied to clipboard"),
+      () => toast.error("Failed to copy"),
+    );
   }
 
   return (
@@ -83,7 +84,7 @@ function SessionCard({ s }: { s: Session }) {
   const resumeCmd = `claude --resume ${s.sessionId}`;
 
   return (
-    <Card className="cursor-pointer rounded-none border-0 ring-0 transition-colors hover:bg-accent">
+    <Card className="rounded-none border-0 ring-0 transition-colors hover:bg-accent">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -125,7 +126,10 @@ export default function SessionsPage() {
     setLoading(true);
     setError(null);
     fetch("/api/sessions")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => setSessions(data.sessions))
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
@@ -141,6 +145,8 @@ export default function SessionsPage() {
   const filtered = normalized
     ? sessions.filter((s) =>
         s.firstMessage?.toLowerCase().includes(normalized) ||
+        s.lastUserMessage?.toLowerCase().includes(normalized) ||
+        s.project.toLowerCase().includes(normalized) ||
         s.sessionId.toLowerCase().includes(normalized)
       )
     : sessions;
