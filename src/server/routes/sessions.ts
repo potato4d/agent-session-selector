@@ -1,5 +1,6 @@
 import { Router } from "express";
 import fs from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import os from "os";
 
@@ -9,10 +10,44 @@ const CLAUDE_DIR = path.join(os.homedir(), ".claude");
 const PROJECTS_DIR = path.join(CLAUDE_DIR, "projects");
 const SESSIONS_DIR = path.join(CLAUDE_DIR, "sessions");
 
-/** C--Users-mail-Documents → C:\Users\mail\Documents */
+/** C--Users-mail-Documents → C:\Users\mail\Documents
+ *  Uses filesystem validation so dir names containing "-" are preserved. */
 function decodeProjectPath(encoded: string): string {
-  // Leading drive letter: "C--" → "C:\"
-  return encoded.replace(/^([A-Za-z])--/, "$1:\\").replaceAll("-", "\\");
+  const driveMatch = encoded.match(/^([A-Za-z])--(.*)$/);
+  let current: string;
+  let remaining: string;
+
+  if (driveMatch) {
+    current = `${driveMatch[1]}:\\`;
+    remaining = driveMatch[2];
+  } else {
+    current = "/";
+    remaining = encoded.startsWith("-") ? encoded.slice(1) : encoded;
+  }
+
+  const tokens = remaining.split("-");
+  let i = 0;
+
+  while (i < tokens.length) {
+    let matched = false;
+    // Try longest segment first so "cc-session-selector" wins over "cc"
+    for (let len = tokens.length - i; len >= 1; len--) {
+      const segment = tokens.slice(i, i + len).join("-");
+      const candidate = path.join(current, segment);
+      if (existsSync(candidate)) {
+        current = candidate;
+        i += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      current = path.join(current, tokens[i]);
+      i++;
+    }
+  }
+
+  return current;
 }
 
 interface ActiveSession {
