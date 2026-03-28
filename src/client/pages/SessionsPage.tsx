@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -46,7 +48,39 @@ function shortLabel(project: string): string {
     .join("/");
 }
 
+function CopyInput({ value }: { value: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(value).then(() => {
+      toast.success("Copied to clipboard");
+    });
+  }
+
+  return (
+    <div className="flex items-stretch">
+      <input
+        ref={inputRef}
+        type="text"
+        readOnly
+        value={value}
+        onClick={() => inputRef.current?.select()}
+        className="min-w-0 flex-1 rounded-l-sm rounded-r-none border border-r-0 border-border bg-muted px-3 py-2 font-mono text-xs text-foreground outline-none"
+      />
+      <button
+        onClick={handleCopy}
+        className="shrink-0 rounded-l-none rounded-r-sm border border-border bg-muted px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        aria-label="Copy to clipboard"
+      >
+        <Copy size={14} />
+      </button>
+    </div>
+  );
+}
+
 function SessionCard({ s }: { s: Session }) {
+  const resumeCmd = `claude --resume ${s.sessionId}`;
+
   return (
     <Card className="cursor-pointer rounded-none border-0 ring-0 transition-colors hover:bg-accent">
       <CardHeader className="pb-2">
@@ -64,8 +98,9 @@ function SessionCard({ s }: { s: Session }) {
           {s.project}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">
+      <CardContent className="space-y-2">
+        <CopyInput value={resumeCmd} />
+        <p className="text-right text-xs text-muted-foreground">
           {new Date(s.lastActivity).toLocaleString()} ·{" "}
           <span className="font-mono">{s.sessionId}</span>
         </p>

@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Header from "@/components/Header";
 import SessionsPage from "@/pages/SessionsPage";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      <Toaster />
     </BrowserRouter>
   );
 }
