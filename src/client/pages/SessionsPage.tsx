@@ -24,6 +24,7 @@ interface Session {
   sessionId: string;
   project: string;
   firstMessage: string | null;
+  lastUserMessage: string | null;
   lastActivity: string;
   createdAt: string;
   isActive: boolean;
@@ -85,7 +86,7 @@ function SessionCard({ s }: { s: Session }) {
     <Card className="cursor-pointer rounded-none border-0 ring-0 transition-colors hover:bg-accent">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm font-medium">
+          <CardTitle className="truncate text-sm font-medium">
             {s.firstMessage ?? "(no message)"}
           </CardTitle>
           {s.isActive && (
@@ -97,6 +98,11 @@ function SessionCard({ s }: { s: Session }) {
         <CardDescription className="truncate text-xs">
           {s.project}
         </CardDescription>
+        {s.lastUserMessage && s.lastUserMessage !== s.firstMessage && (
+          <p className="truncate text-xs text-muted-foreground/70">
+            ↩ {s.lastUserMessage}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-2">
         <CopyInput value={resumeCmd} />
