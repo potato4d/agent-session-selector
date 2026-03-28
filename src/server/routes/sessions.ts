@@ -62,7 +62,7 @@ function readEntryCwd(entry: unknown): string | null {
   return null;
 }
 
-/** ファイルを1回開き、先頭8KB・末尾32KBだけ読んで必要な情報を抽出する */
+/** ファイルを1回開き、先頭8KB・末尾256KBだけ読んで必要な情報を抽出する */
 async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
   const HEAD = 8192;
   const TAIL = 262144;
@@ -80,7 +80,8 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
       const headSize = Math.min(HEAD, size);
       const headBuf = Buffer.alloc(headSize);
       await fh.read(headBuf, 0, headSize, 0);
-      for (const line of headBuf.toString("utf-8").split("\n")) {
+      const headLines = headBuf.toString("utf-8").split("\n");
+      for (const line of headLines) {
         try {
           const entry = JSON.parse(line);
           cwd ??= readEntryCwd(entry);
@@ -98,10 +99,16 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
       }
 
       // 末尾から lastTimestamp / lastUserMessage を探し、cwd も補完する
-      const tailSize = Math.min(TAIL, size);
-      const tailBuf = Buffer.alloc(tailSize);
-      await fh.read(tailBuf, 0, tailSize, size - tailSize);
-      const tailLines = tailBuf.toString("utf-8").split("\n");
+      const tailStart = Math.max(0, size - TAIL);
+      const tailSize = size - tailStart;
+      // 先頭読み込みで全体をカバー済みならバッファを再利用
+      const tailLines = tailStart < headSize
+        ? headLines
+        : await (async () => {
+            const tailBuf = Buffer.alloc(tailSize);
+            await fh.read(tailBuf, 0, tailSize, tailStart);
+            return tailBuf.toString("utf-8").split("\n");
+          })();
       for (let i = tailLines.length - 1; i >= 0; i--) {
         try {
           const entry = JSON.parse(tailLines[i]);
@@ -136,55 +143,56 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
 router.get("/", async (_req, res) => {
   try {
     const [projectDirs, activeSessions] = await Promise.all([
-      fs.readdir(PROJECTS_DIR),
+      fs.readdir(PROJECTS_DIR).catch(() => [] as string[]),
       getActiveSessions(),
     ]);
 
     const sessions = (
       await Promise.all(
         projectDirs.map(async (dir) => {
-          const projectPath = path.join(PROJECTS_DIR, dir);
-          const stat = await fs.stat(projectPath);
-          if (!stat.isDirectory()) return [];
+          try {
+            const projectPath = path.join(PROJECTS_DIR, dir);
+            const stat = await fs.stat(projectPath);
+            if (!stat.isDirectory()) return [];
 
-          const files = await fs.readdir(projectPath);
-          const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+            const files = await fs.readdir(projectPath);
+            const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
 
-          return Promise.all(
-            jsonlFiles.map(async (file) => {
-              const sessionId = file.replace(".jsonl", "");
-              const filePath = path.join(projectPath, file);
-              const fileStat = await fs.stat(filePath);
+            return Promise.all(
+              jsonlFiles.map(async (file) => {
+                const sessionId = file.replace(".jsonl", "");
+                const filePath = path.join(projectPath, file);
+                const fileStat = await fs.stat(filePath);
 
-              const {
-                firstMessage,
-                lastUserMessage,
-                lastTimestamp,
-                cwd,
-              } = await readSessionFileInfo(filePath);
+                const {
+                  firstMessage,
+                  lastUserMessage,
+                  lastTimestamp,
+                  cwd,
+                } = await readSessionFileInfo(filePath);
 
-              const active = activeSessions.get(sessionId);
+                const active = activeSessions.get(sessionId);
 
-              return {
-                sessionId,
-                project: active?.cwd ?? cwd ?? UNKNOWN_PROJECT,
-                firstMessage,
-                lastUserMessage,
-                lastActivity: lastTimestamp ?? fileStat.mtime.toISOString(),
-                createdAt: fileStat.birthtime.toISOString(),
-                isActive: !!active,
-                active: active ?? null,
-              };
-            })
-          );
+                return {
+                  sessionId,
+                  project: active?.cwd ?? cwd ?? UNKNOWN_PROJECT,
+                  firstMessage,
+                  lastUserMessage,
+                  lastActivity: lastTimestamp ?? fileStat.mtime.toISOString(),
+                  createdAt: fileStat.birthtime.toISOString(),
+                  isActive: !!active,
+                  active: active ?? null,
+                };
+              })
+            );
+          } catch {
+            return [];
+          }
         })
       )
     ).flat();
 
-    sessions.sort(
-      (a, b) =>
-        new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
-    );
+    sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
     res.json({ sessions });
   } catch (err) {

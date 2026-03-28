@@ -53,9 +53,10 @@ function CopyInput({ value }: { value: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleCopy() {
-    navigator.clipboard.writeText(value).then(() => {
-      toast.success("Copied to clipboard");
-    });
+    navigator.clipboard.writeText(value).then(
+      () => toast.success("Copied to clipboard"),
+      () => toast.error("Failed to copy"),
+    );
   }
 
   return (
@@ -83,7 +84,7 @@ function SessionCard({ s }: { s: Session }) {
   const resumeCmd = `claude --resume ${s.sessionId}`;
 
   return (
-    <Card className="cursor-pointer rounded-none border-0 ring-0 transition-colors hover:bg-accent">
+    <Card className="rounded-none border-0 ring-0 transition-colors hover:bg-accent">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -125,7 +126,10 @@ export default function SessionsPage() {
     setLoading(true);
     setError(null);
     fetch("/api/sessions")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => setSessions(data.sessions))
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
@@ -141,6 +145,8 @@ export default function SessionsPage() {
   const filtered = normalized
     ? sessions.filter((s) =>
         s.firstMessage?.toLowerCase().includes(normalized) ||
+        s.lastUserMessage?.toLowerCase().includes(normalized) ||
+        s.project.toLowerCase().includes(normalized) ||
         s.sessionId.toLowerCase().includes(normalized)
       )
     : sessions;
@@ -151,15 +157,15 @@ export default function SessionsPage() {
 
   const tabTriggerClass = `relative h-9 rounded-none border-r border-border px-4 text-xs text-muted-foreground
     transition-none
-    data-[state=active]:bg-background
-    data-[state=active]:text-foreground
-    data-[state=active]:shadow-none
-    data-[state=active]:after:absolute
-    data-[state=active]:after:bottom-0
-    data-[state=active]:after:left-0
-    data-[state=active]:after:right-0
-    data-[state=active]:after:h-px
-    data-[state=active]:after:bg-background`;
+    data-active:bg-background
+    data-active:text-foreground
+    data-active:shadow-none
+    data-active:after:absolute
+    data-active:after:bottom-0
+    data-active:after:left-0
+    data-active:after:right-0
+    data-active:after:h-px
+    data-active:after:bg-background`;
 
   return (
     <div className="flex flex-col">
