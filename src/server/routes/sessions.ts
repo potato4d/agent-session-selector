@@ -2,8 +2,6 @@ import { Router } from "express";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import readline from "readline";
-import { createReadStream } from "fs";
 
 const router = Router();
 
@@ -49,59 +47,57 @@ async function getActiveSessions(): Promise<Map<string, ActiveSession>> {
   return map;
 }
 
-async function getFirstUserMessage(filePath: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: createReadStream(filePath),
-      crlfDelay: Infinity,
-    });
-    let resolved = false;
-    rl.on("line", (line) => {
-      if (resolved) return;
-      try {
-        const entry = JSON.parse(line);
-        if (entry.type === "user" && typeof entry.message?.content === "string") {
-          resolved = true;
-          rl.close();
-          resolve(entry.message.content);
-        }
-      } catch {
-        // skip
-      }
-    });
-    rl.on("close", () => {
-      if (!resolved) resolve(null);
-    });
-  });
+interface SessionFileInfo {
+  firstMessage: string | null;
+  lastTimestamp: string | null;
 }
 
-async function getLastTimestamp(filePath: string): Promise<string | null> {
-  // Read last 4KB to find the last timestamp
-  const CHUNK = 4096;
+/** ファイルを1回開き、先頭8KB・末尾4KBだけ読んで必要な情報を抽出する */
+async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
+  const HEAD = 8192;
+  const TAIL = 4096;
+  let firstMessage: string | null = null;
   let lastTimestamp: string | null = null;
+
   try {
-    const stat = await fs.stat(filePath);
-    const readSize = Math.min(CHUNK, stat.size);
-    const buf = Buffer.alloc(readSize);
     const fh = await fs.open(filePath, "r");
-    await fh.read(buf, 0, readSize, stat.size - readSize);
-    await fh.close();
-    const lines = buf.toString("utf-8").split("\n").filter(Boolean);
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.timestamp) {
-          lastTimestamp = entry.timestamp;
-          break;
-        }
-      } catch {
-        // skip
+    try {
+      const { size } = await fh.stat();
+
+      // 先頭から firstMessage を探す
+      const headSize = Math.min(HEAD, size);
+      const headBuf = Buffer.alloc(headSize);
+      await fh.read(headBuf, 0, headSize, 0);
+      for (const line of headBuf.toString("utf-8").split("\n")) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.type === "user" && typeof entry.message?.content === "string") {
+            firstMessage = entry.message.content;
+            break;
+          }
+        } catch { /* skip */ }
       }
+
+      // 末尾から lastTimestamp を探す
+      const tailSize = Math.min(TAIL, size);
+      const tailBuf = Buffer.alloc(tailSize);
+      await fh.read(tailBuf, 0, tailSize, size - tailSize);
+      const tailLines = tailBuf.toString("utf-8").split("\n");
+      for (let i = tailLines.length - 1; i >= 0; i--) {
+        try {
+          const entry = JSON.parse(tailLines[i]);
+          if (entry.timestamp) {
+            lastTimestamp = entry.timestamp;
+            break;
+          }
+        } catch { /* skip */ }
+      }
+    } finally {
+      await fh.close();
     }
-  } catch {
-    // ignore
-  }
-  return lastTimestamp;
+  } catch { /* ignore */ }
+
+  return { firstMessage, lastTimestamp };
 }
 
 router.get("/", async (_req, res) => {
@@ -127,10 +123,7 @@ router.get("/", async (_req, res) => {
               const filePath = path.join(projectPath, file);
               const fileStat = await fs.stat(filePath);
 
-              const [firstMessage, lastTimestamp] = await Promise.all([
-                getFirstUserMessage(filePath),
-                getLastTimestamp(filePath),
-              ]);
+              const { firstMessage, lastTimestamp } = await readSessionFileInfo(filePath);
 
               const active = activeSessions.get(sessionId);
 

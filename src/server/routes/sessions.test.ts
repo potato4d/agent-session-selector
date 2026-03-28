@@ -43,24 +43,12 @@ vi.mock("fs/promises", () => ({
   },
 }));
 
-vi.mock("fs", () => ({
-  createReadStream: vi.fn(),
-}));
-
-vi.mock("readline", () => ({
-  default: {
-    createInterface: vi.fn(),
-  },
-}));
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 async function setupMocks() {
   const fs = (await import("fs/promises")).default;
-  const { createReadStream } = await import("fs");
-  const readline = (await import("readline")).default;
 
   vi.mocked(fs.readdir).mockImplementation(async (p) => {
     const s = String(p);
@@ -85,42 +73,16 @@ async function setupMocks() {
 
   vi.mocked(fs.readFile).mockResolvedValue(MOCK_SESSION_FILE as any);
 
-  // Mock open/read for getLastTimestamp
+  // Mock open for readSessionFileInfo (reads head + tail in one open)
   const buf = Buffer.from(MOCK_JSONL);
   vi.mocked(fs.open).mockResolvedValue({
-    read: async (b: Buffer, offset: number, length: number) => {
-      buf.copy(b, offset, 0, length);
+    stat: async () => ({ size: buf.length }),
+    read: async (b: Buffer, offset: number, length: number, position: number) => {
+      buf.copy(b, offset, position, position + length);
       return { bytesRead: length };
     },
     close: async () => {},
   } as any);
-
-  // Mock createReadStream + readline for getFirstUserMessage
-  const lines = MOCK_JSONL.split("\n");
-  let lineIndex = 0;
-  const emitter = {
-    _handlers: {} as Record<string, ((...args: any[]) => void)[]>,
-    on(event: string, handler: (...args: any[]) => void) {
-      if (!this._handlers[event]) this._handlers[event] = [];
-      this._handlers[event].push(handler);
-      if (event === "line") {
-        // emit lines asynchronously
-        Promise.resolve().then(() => {
-          for (const line of lines) {
-            if (lineIndex++ < lines.length) {
-              this._handlers["line"]?.forEach((h) => h(line));
-            }
-          }
-          this._handlers["close"]?.forEach((h) => h());
-        });
-      }
-      return this;
-    },
-    close() {},
-  };
-
-  vi.mocked(createReadStream).mockReturnValue({} as any);
-  vi.mocked(readline.createInterface).mockReturnValue(emitter as any);
 }
 
 describe("GET /api/health", () => {
