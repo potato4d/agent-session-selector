@@ -80,7 +80,8 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
       const headSize = Math.min(HEAD, size);
       const headBuf = Buffer.alloc(headSize);
       await fh.read(headBuf, 0, headSize, 0);
-      for (const line of headBuf.toString("utf-8").split("\n")) {
+      const headLines = headBuf.toString("utf-8").split("\n");
+      for (const line of headLines) {
         try {
           const entry = JSON.parse(line);
           cwd ??= readEntryCwd(entry);
@@ -102,7 +103,7 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
       const tailSize = size - tailStart;
       // 先頭読み込みで全体をカバー済みならバッファを再利用
       const tailLines = tailStart < headSize
-        ? headBuf.toString("utf-8").split("\n")
+        ? headLines
         : await (async () => {
             const tailBuf = Buffer.alloc(tailSize);
             await fh.read(tailBuf, 0, tailSize, tailStart);
@@ -191,10 +192,7 @@ router.get("/", async (_req, res) => {
       )
     ).flat();
 
-    sessions.sort(
-      (a, b) =>
-        new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
-    );
+    sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
 
     res.json({ sessions });
   } catch (err) {

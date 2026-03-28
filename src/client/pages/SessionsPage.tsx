@@ -157,15 +157,15 @@ export default function SessionsPage() {
 
   const tabTriggerClass = `relative h-9 rounded-none border-r border-border px-4 text-xs text-muted-foreground
     transition-none
-    data-[state=active]:bg-background
-    data-[state=active]:text-foreground
-    data-[state=active]:shadow-none
-    data-[state=active]:after:absolute
-    data-[state=active]:after:bottom-0
-    data-[state=active]:after:left-0
-    data-[state=active]:after:right-0
-    data-[state=active]:after:h-px
-    data-[state=active]:after:bg-background`;
+    data-active:bg-background
+    data-active:text-foreground
+    data-active:shadow-none
+    data-active:after:absolute
+    data-active:after:bottom-0
+    data-active:after:left-0
+    data-active:after:right-0
+    data-active:after:h-px
+    data-active:after:bg-background`;
 
   return (
     <div className="flex flex-col">
