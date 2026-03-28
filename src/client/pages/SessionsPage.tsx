@@ -165,16 +165,21 @@ export default function SessionsPage() {
     <div className="flex flex-col">
       <Tabs defaultValue={defaultTab} className="gap-0">
         {/* Tab bar */}
-        <div className="border-b border-border bg-muted/40">
-          <TabsList className="flex h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+        <div className="scrollbar-hidden overflow-x-auto border-b border-border bg-muted/40">
+          <TabsList className="flex h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
             {loading
               ? [80, 110].map((w) => (
-                  <div key={w} className="flex h-9 items-center border-r border-border px-4">
+                  <div key={w} className="flex h-9 shrink-0 items-center border-r border-border px-4">
                     <div className="animate-pulse rounded bg-muted-foreground/20" style={{ width: w, height: 10 }} />
                   </div>
                 ))
               : projects.map((project) => (
-                  <TabsTrigger key={project} value={project} title={project} className={tabTriggerClass}>
+                  <TabsTrigger
+                    key={project}
+                    value={project}
+                    title={project}
+                    className={`${tabTriggerClass} shrink-0 flex-none`}
+                  >
                     <span className="font-mono">{shortLabel(project)}</span>
                     <span className="ml-2 text-muted-foreground/60">{grouped.get(project)!.length}</span>
                   </TabsTrigger>
