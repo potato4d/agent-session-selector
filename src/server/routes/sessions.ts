@@ -84,14 +84,16 @@ async function getActiveSessions(): Promise<Map<string, ActiveSession>> {
 
 interface SessionFileInfo {
   firstMessage: string | null;
+  lastUserMessage: string | null;
   lastTimestamp: string | null;
 }
 
-/** ファイルを1回開き、先頭8KB・末尾4KBだけ読んで必要な情報を抽出する */
+/** ファイルを1回開き、先頭8KB・末尾32KBだけ読んで必要な情報を抽出する */
 async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
   const HEAD = 8192;
-  const TAIL = 4096;
+  const TAIL = 262144;
   let firstMessage: string | null = null;
+  let lastUserMessage: string | null = null;
   let lastTimestamp: string | null = null;
 
   try {
@@ -106,14 +108,18 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
       for (const line of headBuf.toString("utf-8").split("\n")) {
         try {
           const entry = JSON.parse(line);
-          if (entry.type === "user" && typeof entry.message?.content === "string") {
+          if (
+            entry.type === "user" &&
+            !entry.isMeta &&
+            typeof entry.message?.content === "string"
+          ) {
             firstMessage = entry.message.content;
             break;
           }
         } catch { /* skip */ }
       }
 
-      // 末尾から lastTimestamp を探す
+      // 末尾から lastTimestamp と lastUserMessage を探す
       const tailSize = Math.min(TAIL, size);
       const tailBuf = Buffer.alloc(tailSize);
       await fh.read(tailBuf, 0, tailSize, size - tailSize);
@@ -121,10 +127,19 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
       for (let i = tailLines.length - 1; i >= 0; i--) {
         try {
           const entry = JSON.parse(tailLines[i]);
-          if (entry.timestamp) {
+          if (!lastTimestamp && entry.timestamp) {
             lastTimestamp = entry.timestamp;
-            break;
           }
+          if (
+            !lastUserMessage &&
+            entry.type === "user" &&
+            !entry.isMeta &&
+            typeof entry.message?.content === "string" &&
+            entry.message.content !== "/exit"
+          ) {
+            lastUserMessage = entry.message.content;
+          }
+          if (lastTimestamp && lastUserMessage) break;
         } catch { /* skip */ }
       }
     } finally {
@@ -132,7 +147,7 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
     }
   } catch { /* ignore */ }
 
-  return { firstMessage, lastTimestamp };
+  return { firstMessage, lastUserMessage, lastTimestamp };
 }
 
 router.get("/", async (_req, res) => {
@@ -158,7 +173,7 @@ router.get("/", async (_req, res) => {
               const filePath = path.join(projectPath, file);
               const fileStat = await fs.stat(filePath);
 
-              const { firstMessage, lastTimestamp } = await readSessionFileInfo(filePath);
+              const { firstMessage, lastUserMessage, lastTimestamp } = await readSessionFileInfo(filePath);
 
               const active = activeSessions.get(sessionId);
 
@@ -166,6 +181,7 @@ router.get("/", async (_req, res) => {
                 sessionId,
                 project: decodeProjectPath(dir),
                 firstMessage,
+                lastUserMessage,
                 lastActivity: lastTimestamp ?? fileStat.mtime.toISOString(),
                 createdAt: fileStat.birthtime.toISOString(),
                 isActive: !!active,

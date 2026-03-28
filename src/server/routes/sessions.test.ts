@@ -32,6 +32,20 @@ const MOCK_JSONL = [
     timestamp: "2026-01-01T10:05:00.000Z",
     sessionId: "aaaa-bbbb",
   }),
+  JSON.stringify({
+    type: "user",
+    message: { role: "user", content: "follow-up question" },
+    uuid: "u3",
+    timestamp: "2026-01-01T10:10:00.000Z",
+    sessionId: "aaaa-bbbb",
+  }),
+  JSON.stringify({
+    type: "assistant",
+    message: { role: "assistant", content: "answer" },
+    uuid: "u4",
+    timestamp: "2026-01-01T10:15:00.000Z",
+    sessionId: "aaaa-bbbb",
+  }),
 ].join("\n");
 
 vi.mock("fs/promises", () => ({
@@ -104,6 +118,7 @@ describe("GET /api/sessions", () => {
     expect(session.sessionId).toBe("aaaa-bbbb");
     expect(session.project).toBe("C:\\Users\\mail\\Documents");
     expect(session.firstMessage).toBe("hello world");
+    expect(session.lastUserMessage).toBe("follow-up question");
     expect(session.isActive).toBe(true);
     expect(session.active?.pid).toBe(1234);
   });
@@ -142,6 +157,53 @@ describe("GET /api/sessions", () => {
     expect(res.status).toBe(200);
     const ids = res.body.sessions.map((s: any) => s.sessionId);
     expect(ids[0]).toBe("aaaa-bbbb"); // newer first
+  });
+
+  it("skips /exit as lastUserMessage", async () => {
+    await setupMocks();
+    const fs = (await import("fs/promises")).default;
+
+    const jsonlWithExit = [
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "hello world" },
+        uuid: "u1",
+        timestamp: "2026-01-01T10:00:01.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "/exit" },
+        uuid: "u2",
+        timestamp: "2026-01-01T10:05:00.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+    ].join("\n");
+
+    const buf = Buffer.from(jsonlWithExit);
+    vi.mocked(fs.open).mockResolvedValue({
+      stat: async () => ({ size: buf.length }),
+      read: async (b: Buffer, offset: number, length: number, position: number) => {
+        buf.copy(b, offset, position, position + length);
+        return { bytesRead: length };
+      },
+      close: async () => {},
+    } as any);
+    vi.mocked(fs.stat).mockImplementation(async (p) => {
+      const s = String(p);
+      if (s.endsWith("C--Users-mail-Documents")) return { isDirectory: () => true } as any;
+      return {
+        isDirectory: () => false,
+        size: buf.length,
+        mtime: new Date("2026-01-01T10:05:00.000Z"),
+        birthtime: new Date("2026-01-01T10:00:00.000Z"),
+      } as any;
+    });
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    // lastUserMessage should fall back to the non-/exit message
+    expect(res.body.sessions[0].lastUserMessage).toBe("hello world");
   });
 
   it("marks session as inactive when not in sessions dir", async () => {
