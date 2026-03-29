@@ -22,6 +22,10 @@ src/
 Web のみ（Tauri なし）: `pnpm dev:web`
 Tauri も含めて全部起動: `pnpm dev`
 
+## コミットメッセージ
+
+コミットメッセージは**英語**で書くこと。
+
 ## 主要コマンド
 
 ```bash
