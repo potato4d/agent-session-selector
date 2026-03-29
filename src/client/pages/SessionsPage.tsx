@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Copy, Minus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { getApiBaseUrl } from "@/lib/runtime";
 import {
   Card,
   CardContent,
@@ -273,9 +274,10 @@ export default function SessionsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const initializedRef = useRef(false);
+  const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
-    const es = new EventSource("/api/sessions/events");
+    const es = new EventSource(`${apiBaseUrl}/api/sessions/events`);
 
     es.onmessage = (event) => {
       try {
@@ -298,7 +300,7 @@ export default function SessionsPage() {
     };
 
     return () => es.close();
-  }, []);
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     const handler = () => {

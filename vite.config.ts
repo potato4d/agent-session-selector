@@ -19,6 +19,7 @@ export default defineConfig({
     outDir: "dist/client",
   },
   server: {
+    host: "127.0.0.1",
     port: CLIENT_PORT,
     proxy: {
       "/api": `http://127.0.0.1:${SERVER_PORT}`,

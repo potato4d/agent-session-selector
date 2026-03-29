@@ -13,7 +13,10 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cli": "tsx src/cli/index.tsx"
+    "cli": "tsx src/cli/index.tsx",
+    "tauri": "node scripts/run-tauri.mjs",
+    "tauri:dev": "node scripts/run-tauri.mjs dev",
+    "tauri:build": "node scripts/run-tauri.mjs build"
   },
   "vitest": {
     "environment": "node",
@@ -23,11 +26,12 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
-    "ink": "^6.0.0",
     "@fontsource-variable/geist": "^5.2.8",
+    "@tauri-apps/api": "2.10.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "express": "^4.21.2",
+    "ink": "^6.0.0",
     "lucide-react": "^1.7.0",
     "react-router-dom": "^7.13.2",
     "shadcn": "^4.1.1",
@@ -37,6 +41,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "@tauri-apps/cli": "2.10.1",
     "@types/express": "^5.0.1",
     "@types/node": "^22.13.14",
     "@types/react": "^19.1.0",

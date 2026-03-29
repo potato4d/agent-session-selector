@@ -1,44 +1,177 @@
+import type { MouseEvent } from "react";
 import { NavLink } from "react-router-dom";
-import { RefreshCw } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getDesktopPlatform, isTauriShell } from "@/lib/runtime";
 
 const NAV_ITEMS: { to: string; label: string }[] = [];
 
 export default function Header() {
+  const tauriShell = isTauriShell();
+  const platform = getDesktopPlatform();
+  const isMacos = platform === "macos";
+  const dragRegionProps = tauriShell
+    ? ({ "data-tauri-drag-region": "true" } as const)
+    : {};
+  const noDragRegionProps = tauriShell
+    ? ({ "data-tauri-drag-region": "false" } as const)
+    : {};
+
+  async function handleDragRegionMouseDown(event: MouseEvent<HTMLElement>) {
+    if (!tauriShell || event.button !== 0) return;
+    await getCurrentWindow().startDragging();
+  }
+
+  async function handleDragRegionDoubleClick(event: MouseEvent<HTMLElement>) {
+    if (!tauriShell || event.button !== 0) return;
+    await getCurrentWindow().toggleMaximize();
+  }
+
+  async function handleWindowAction(action: "minimize" | "maximize" | "close") {
+    if (!tauriShell) return;
+
+    const window = getCurrentWindow();
+
+    if (action === "minimize") {
+      await window.minimize();
+      return;
+    }
+
+    if (action === "maximize") {
+      await window.toggleMaximize();
+      return;
+    }
+
+    await window.close();
+  }
+
+  const windowControls = tauriShell ? (
+    <div
+      {...noDragRegionProps}
+      className="flex items-center overflow-hidden rounded-sm border border-border bg-muted"
+    >
+      {isMacos ? (
+        <>
+          <button
+            type="button"
+            onClick={() => void handleWindowAction("close")}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
+            title="Close window"
+            aria-label="Close window"
+          >
+            <X size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleWindowAction("minimize")}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center border-x border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Minimize window"
+            aria-label="Minimize window"
+          >
+            <Minimize2 size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleWindowAction("maximize")}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Toggle maximize"
+            aria-label="Toggle maximize"
+          >
+            <Maximize2 size={13} />
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => void handleWindowAction("minimize")}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Minimize window"
+            aria-label="Minimize window"
+          >
+            <Minimize2 size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleWindowAction("maximize")}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center border-x border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Toggle maximize"
+            aria-label="Toggle maximize"
+          >
+            <Maximize2 size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleWindowAction("close")}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
+            title="Close window"
+            aria-label="Close window"
+          >
+            <X size={13} />
+          </button>
+        </>
+      )}
+    </div>
+  ) : null;
+
   return (
     <header className="border-b bg-background">
-      <div className="flex w-full items-center gap-6 px-6 py-3">
-        <h1 className="text-sm font-semibold tracking-tight">
-          Agent Session Selector
-        </h1>
-        <nav aria-label="Primary" className="flex items-center gap-1">
-          {NAV_ITEMS.map(({ to, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end
-              className={({ isActive }) =>
-                cn(
-                  "cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("sessions:refetch"))}
-          className="ml-auto flex cursor-pointer items-center justify-center rounded-sm border border-border bg-muted p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Refresh sessions"
-          aria-label="Refresh sessions"
+      <div className="flex w-full items-stretch select-none">
+        {isMacos && windowControls && (
+          <div className="flex items-center pl-3 pr-2">{windowControls}</div>
+        )}
+
+        <div
+          className="flex min-w-0 flex-1 items-center gap-6 px-6 py-3"
+          {...dragRegionProps}
+          onMouseDown={(event) => void handleDragRegionMouseDown(event)}
+          onDoubleClick={(event) => void handleDragRegionDoubleClick(event)}
         >
-          <RefreshCw size={13} />
-        </button>
+          <h1
+            className="truncate text-sm font-semibold tracking-tight"
+            {...dragRegionProps}
+          >
+            Agent Session Selector
+          </h1>
+          <nav
+            aria-label="Primary"
+            className="flex items-center gap-1"
+            {...dragRegionProps}
+          >
+            {NAV_ITEMS.map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end
+                className={({ isActive }) =>
+                  cn(
+                    "cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )
+                }
+                {...noDragRegionProps}
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+
+        <div {...noDragRegionProps} className="flex items-center gap-2 px-3">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("sessions:refetch"))}
+            className="flex cursor-pointer items-center justify-center rounded-sm border border-border bg-muted p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Refresh sessions"
+            aria-label="Refresh sessions"
+          >
+            <RefreshCw size={13} />
+          </button>
+          {!isMacos && windowControls}
+        </div>
       </div>
     </header>
   );

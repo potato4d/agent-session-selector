@@ -118,8 +118,23 @@
 }
 
 @layer base {
+  [data-tauri-drag-region="true"] {
+    app-region: drag;
+    -webkit-app-region: drag;
+    }
+
+  [data-tauri-drag-region="false"] {
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
+    }
+
   * {
     @apply border-border outline-ring/50;
+    }
+  html,
+  body,
+  #root {
+    height: 100%;
     }
   body {
     @apply bg-background text-foreground;
