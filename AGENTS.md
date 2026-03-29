@@ -4,117 +4,117 @@
 
 - Write commit messages in English.
 
-## プロジェクト概要
+## Project Overview
 
-`~/.claude/` からセッション一覧を読み込み、`claude --resume <sessionId>` コマンドをすばやくコピーできる Web アプリ。
+A web app that reads the session list from `~/.claude/` and lets you quickly copy the `claude --resume <sessionId>` command.
 
-## 構成
+## Structure
 
-単一パッケージ（モノレポではない）。
+Single package (not a monorepo).
 
 ```
 src/
   client/   # React 19 + Vite + TypeScript
-  server/   # Express + TypeScript (tsx watch で起動)
+  server/   # Express + TypeScript (started with tsx watch)
 ```
 
-| サービス | URL                    | 起動スクリプト   |
-|----------|------------------------|-----------------|
-| Client   | http://localhost:6814  | `pnpm dev:client` |
-| Server   | http://localhost:6815  | `pnpm dev:server` |
+| Service | URL                    | Start Script      |
+|---------|------------------------|-------------------|
+| Client  | http://localhost:6814  | `pnpm dev:client` |
+| Server  | http://localhost:6815  | `pnpm dev:server` |
 
-Web のみ（Tauri なし）: `pnpm dev:web`
-Tauri も含めて全部起動: `pnpm dev`
+Web only (no Tauri): `pnpm dev:web`
+Start everything including Tauri: `pnpm dev`
 
-## 主要コマンド
+## Main Commands
 
 ```bash
-pnpm dev          # クライアント + サーバーを同時起動
-pnpm test         # Vitest（サーバーのみ）
-pnpm typecheck    # クライアント + サーバー両方の型チェック
-pnpm build        # 本番ビルド
+pnpm dev          # Start client + server concurrently
+pnpm test         # Vitest (server only)
+pnpm typecheck    # Type check both client + server
+pnpm build        # Production build
 ```
 
-## パスエイリアス
+## Path Aliases
 
-クライアント側コードでは `@/` → `src/client/` のエイリアスが使える。
+On the client side, `@/` is aliased to `src/client/`.
 
 ```ts
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 ```
 
-`tsconfig.json`（クライアント）と `vite.config.ts` の両方に設定済み。
+Configured in both `tsconfig.json` (client) and `vite.config.ts`.
 
-## TypeScript 設定
+## TypeScript Configuration
 
-| ファイル | 対象 | モジュール解決 |
-|---|---|---|
-| `tsconfig.json` | クライアント + Vite | Bundler |
-| `tsconfig.server.json` | サーバー | NodeNext |
+| File                  | Target              | Module Resolution |
+|-----------------------|---------------------|-------------------|
+| `tsconfig.json`       | Client + Vite       | Bundler           |
+| `tsconfig.server.json`| Server              | NodeNext          |
 
-サーバー側の import は `.js` 拡張子が必要（NodeNext）:
+Server-side imports require `.js` extensions (NodeNext):
 
 ```ts
 import sessionsRouter from "./routes/sessions.js";
 ```
 
-## テスト
+## Testing
 
-- フレームワーク: Vitest + Supertest
-- 対象: `src/server/**/*.test.ts`（クライアントのテストはない）
-- `fs/promises` をモックして Express アプリをテスト
+- Framework: Vitest + Supertest
+- Target: `src/server/**/*.test.ts` (no client tests)
+- Tests the Express app by mocking `fs/promises`
 
 ```bash
-pnpm test         # 1回実行
-pnpm test:watch   # ウォッチモード
+pnpm test         # Run once
+pnpm test:watch   # Watch mode
 ```
 
-## フロントエンド技術スタック
+## Frontend Tech Stack
 
 - React 19 / React Router v7
-- Tailwind CSS v4（`@tailwindcss/vite` プラグイン、`src/client/index.css` で `@import "tailwindcss"`）
-- shadcn/ui（`@base-ui/react` ベース）
-- Sonner（トースト通知）
-- Geist フォント（`@fontsource-variable/geist`）
+- Tailwind CSS v4 (`@tailwindcss/vite` plugin, `@import "tailwindcss"` in `src/client/index.css`)
+- shadcn/ui (based on `@base-ui/react`)
+- Sonner (toast notifications)
+- Geist font (`@fontsource-variable/geist`)
 
-## サーバー側の主要ロジック
+## Core Server Logic
 
-### セッションファイルの読み取り
+### Reading Session Files
 
-`~/.claude/projects/<encoded-path>/<sessionId>.jsonl` を読む。
+Reads `~/.claude/projects/<encoded-path>/<sessionId>.jsonl`.
 
-- 先頭 8KB → `firstMessage` 抽出
-- 末尾 256KB → `lastUserMessage`・`lastTimestamp` 抽出
-- パフォーマンスのため `fs.open` + byte range read（readline ストリームは使わない）
+- First 8KB → extract `firstMessage`
+- Last 256KB → extract `lastUserMessage` and `lastTimestamp`
+- Uses `fs.open` + byte range reads for performance (no readline streams)
 
-**フィルタ条件（`lastUserMessage`）:**
+**Filter conditions for `lastUserMessage`:**
 
 - `type === "user"`
 - `isMeta !== true`
-- `typeof message.content === "string"`（tool_result は配列なのでスキップ）
+- `typeof message.content === "string"` (tool_result is an array, so skip)
 - `content !== "/exit"`
 
-### パスデコード
+### Path Decoding
 
 `C--Users-foobar-Documents-repos-cc-session-selector` → `C:\Users\foobar\Documents\repos\cc-session-selector`
 
-`~/.claude/projects` 配下のディレクトリ名は Claude の内部表現として扱い、表示用パスは JSONL や active session に入っている `cwd` を優先する。`-` は実際のディレクトリ名にも含まれるため、エンコード済みディレクトリ名の逆変換は信頼しない。
+Directory names under `~/.claude/projects` are treated as Claude's internal representation. The display path is taken from the `cwd` field in the JSONL or active session. Since `-` can appear in actual directory names, reverse-decoding of encoded directory names is not trusted.
 
-## UI の注意点
+## UI Notes
 
-- カード間の区切りは `divide-y divide-border`（Card コンポーネント自体は `border-0 ring-0`）
-- タブバーは Ghostty 風（`bg-muted`、アクティブタブのみ `bg-background`）
-- プレビューで CSS の確認が難しい場合は `preview_snapshot`（アクセシビリティツリー）を使う
+- Card separators use `divide-y divide-border` (Card component itself has `border-0 ring-0`)
+- Tab bar is Ghostty-style (`bg-muted`, only the active tab uses `bg-background`)
+- If CSS is hard to verify in preview, use `preview_snapshot` (accessibility tree)
 
-## pnpm 設定
+## pnpm Configuration
 
-`pnpm-workspace.yaml` に `minimumReleaseAge: 4320`（3日）が設定されている（サプライチェーン対策）。
+`pnpm-workspace.yaml` has `minimumReleaseAge: 4320` (3 days) set as a supply chain protection measure.
 
-`package.json` の `pnpm.onlyBuiltDependencies: ["esbuild"]` でインタラクティブな approve-builds プロンプトを回避。
+`pnpm.onlyBuiltDependencies: ["esbuild"]` in `package.json` avoids the interactive approve-builds prompt.
 
-## プレビューサーバー
+## Preview Server
 
-`.claude/launch.json` に `server`・`client` の設定あり。`preview_start` で起動する。
+`.claude/launch.json` has `server` and `client` configurations. Start with `preview_start`.
 
-tsx watch は **ファイル変更を自動検知しないことがある**。サーバーコードを変更したら `preview_stop` → `preview_start` で再起動すること。
+tsx watch **may not detect file changes automatically**. After modifying server code, restart with `preview_stop` → `preview_start`.
