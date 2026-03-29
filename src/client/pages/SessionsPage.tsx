@@ -6,7 +6,6 @@ import { getApiBaseUrl } from "@/lib/runtime";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -149,9 +148,6 @@ function SessionCard({ s }: { s: Session }) {
             </Badge>
           )}
         </div>
-        <CardDescription className="truncate text-xs">
-          {s.project}
-        </CardDescription>
         {s.lastUserMessage && s.lastUserMessage !== s.firstMessage && (
           <p className="truncate text-xs text-muted-foreground/70">
             Latest: {s.lastUserMessage}
