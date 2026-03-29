@@ -302,15 +302,6 @@ export default function SessionsPage() {
     return () => es.close();
   }, [apiBaseUrl]);
 
-  useEffect(() => {
-    const handler = () => {
-      toast.info("Session stream reconnect is handled automatically.");
-    };
-
-    window.addEventListener("sessions:refetch", handler);
-    return () => window.removeEventListener("sessions:refetch", handler);
-  }, []);
-
   const allProjects = useCallback(() => {
     const grouped = sessionsByProject(sessions);
     return [...grouped.keys()].sort((a, b) => {

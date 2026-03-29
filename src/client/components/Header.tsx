@@ -1,11 +1,7 @@
 import type { MouseEvent } from "react";
-import { NavLink } from "react-router-dom";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import { getDesktopPlatform, isTauriShell } from "@/lib/runtime";
-
-const NAV_ITEMS: { to: string; label: string }[] = [];
 
 export default function Header() {
   const tauriShell = isTauriShell();
@@ -134,42 +130,9 @@ export default function Header() {
           >
             Agent Session Selector
           </h1>
-          <nav
-            aria-label="Primary"
-            className="flex items-center gap-1"
-            {...dragRegionProps}
-          >
-            {NAV_ITEMS.map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end
-                className={({ isActive }) =>
-                  cn(
-                    "cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors",
-                    isActive
-                      ? "bg-accent text-accent-foreground font-medium"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  )
-                }
-                {...noDragRegionProps}
-              >
-                {label}
-              </NavLink>
-            ))}
-          </nav>
         </div>
 
         <div {...noDragRegionProps} className="flex items-center gap-2 px-3">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("sessions:refetch"))}
-            className="flex cursor-pointer items-center justify-center rounded-sm border border-border bg-muted p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Refresh sessions"
-            aria-label="Refresh sessions"
-          >
-            <RefreshCw size={13} />
-          </button>
           {!isMacos && windowControls}
         </div>
       </div>
