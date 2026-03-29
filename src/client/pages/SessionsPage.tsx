@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Copy, Minus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -302,7 +302,7 @@ export default function SessionsPage() {
     return () => es.close();
   }, [apiBaseUrl]);
 
-  const allProjects = useCallback(() => {
+  const allProjects = useMemo(() => {
     const grouped = sessionsByProject(sessions);
     return [...grouped.keys()].sort((a, b) => {
       const aLatest = grouped.get(a)?.[0]?.lastActivity ?? "";
@@ -315,28 +315,26 @@ export default function SessionsPage() {
     if (loading || initializedRef.current) return;
     initializedRef.current = true;
 
-    const projects = allProjects();
     const stored = loadStoredVisibleProjects();
 
     if (stored && stored.size > 0) {
-      const valid = projects.filter((project) => stored.has(project));
+      const valid = allProjects.filter((project) => stored.has(project));
       setVisibleProjects(
-        valid.length > 0 ? valid : projects.slice(0, DEFAULT_TAB_LIMIT),
+        valid.length > 0 ? valid : allProjects.slice(0, DEFAULT_TAB_LIMIT),
       );
       return;
     }
 
-    setVisibleProjects(projects.slice(0, DEFAULT_TAB_LIMIT));
+    setVisibleProjects(allProjects.slice(0, DEFAULT_TAB_LIMIT));
   }, [loading, allProjects]);
 
   useEffect(() => {
     if (loading || !initializedRef.current) return;
 
-    const projects = allProjects();
     setVisibleProjects((prev) => {
       const prevSet = new Set(prev);
       const grouped = sessionsByProject(sessions);
-      const activeProjects = projects.filter(
+      const activeProjects = allProjects.filter(
         (project) =>
           !prevSet.has(project) &&
           grouped.get(project)?.some((session) => session.isActive),
@@ -384,9 +382,8 @@ export default function SessionsPage() {
 
   const normalized = query.trim().toLowerCase();
   const grouped = sessionsByProject(sessions);
-  const projects = allProjects();
   const tabProjects = visibleProjects.filter((project) => grouped.has(project));
-  const hiddenProjects = projects.filter(
+  const hiddenProjects = allProjects.filter(
     (project) => !visibleProjects.includes(project),
   );
 
@@ -524,7 +521,7 @@ export default function SessionsPage() {
           </p>
         ) : tabProjects.length === 0 ? (
           <p className="p-6 text-sm text-muted-foreground" role="status">
-            {projects.length === 0
+            {allProjects.length === 0
               ? "No sessions found."
               : "All projects are hidden. Use the plus button to show a tab."}
           </p>

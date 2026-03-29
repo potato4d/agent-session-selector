@@ -51,16 +51,28 @@ interface SessionFileInfo {
   turnCount: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function readEntryCwd(entry: unknown): string | null {
-  if (
-    typeof entry === "object" &&
-    entry !== null &&
-    "cwd" in entry &&
-    typeof (entry as { cwd?: unknown }).cwd === "string"
-  ) {
-    return (entry as { cwd: string }).cwd;
+  if (isRecord(entry) && typeof entry.cwd === "string") {
+    return entry.cwd;
   }
   return null;
+}
+
+/** user メッセージかつ isMeta でなく、content が文字列のエントリを判定 */
+function isUserMessage(
+  entry: unknown,
+): entry is { type: "user"; isMeta?: boolean; message: { content: string } } {
+  return (
+    isRecord(entry) &&
+    entry.type === "user" &&
+    entry.isMeta !== true &&
+    isRecord(entry.message) &&
+    typeof entry.message.content === "string"
+  );
 }
 
 /** ファイルを1回開き、必要な情報を抽出する（4MB以下は全読み、超過は先頭8KB+末尾256KB） */
@@ -102,16 +114,12 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
         try {
           const entry = JSON.parse(line);
           cwd ??= readEntryCwd(entry);
-          if (
-            entry.type === "user" &&
-            !entry.isMeta &&
-            typeof entry.message?.content === "string"
-          ) {
+          if (isUserMessage(entry)) {
             if (!firstMessage) firstMessage = entry.message.content;
             if (entry.message.content !== "/exit") turnCount++;
           }
         } catch {
-          // skip
+          // skip malformed JSON lines
         }
       }
 
@@ -120,21 +128,19 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
         try {
           const entry = JSON.parse(lines[i]);
           cwd ??= readEntryCwd(entry);
-          if (!lastTimestamp && entry.timestamp) {
+          if (!lastTimestamp && isRecord(entry) && typeof entry.timestamp === "string") {
             lastTimestamp = entry.timestamp;
           }
           if (
             !lastUserMessage &&
-            entry.type === "user" &&
-            !entry.isMeta &&
-            typeof entry.message?.content === "string" &&
+            isUserMessage(entry) &&
             entry.message.content !== "/exit"
           ) {
             lastUserMessage = entry.message.content;
           }
           if (cwd && lastTimestamp && lastUserMessage) break;
         } catch {
-          // skip
+          // skip malformed JSON lines
         }
       }
     } finally {
