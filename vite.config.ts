@@ -7,7 +7,7 @@ const CLIENT_PORT = Number(process.env.CLIENT_PORT ?? 6814);
 const SERVER_PORT = Number(process.env.PORT ?? 6815);
 
 export default defineConfig({
-  plugins: [tailwindcss(), react()],
+  plugins: [tailwindcss(), react({ babel: { plugins: ["babel-plugin-react-compiler"] } })],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src/client"),
