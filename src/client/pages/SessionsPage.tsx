@@ -384,14 +384,14 @@ export default function SessionsPage() {
     data-active:after:bg-background`;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex h-full flex-col">
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
-        className="gap-0"
+        className="h-full gap-0"
       >
         {/* Tab bar */}
-        <div className="sticky top-0 z-20 flex items-stretch border-b border-border bg-muted/40">
+        <div className="flex items-stretch border-b border-border bg-muted/40">
           <div className="scrollbar-hidden flex-1 overflow-x-auto">
             <TabsList className="flex h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
               {loading
@@ -447,7 +447,7 @@ export default function SessionsPage() {
         </div>
 
         {/* Filter bar */}
-        <div className="sticky top-9 z-10 flex items-center gap-2 border-b border-border bg-background px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2">
           <Search size={14} className="shrink-0 text-muted-foreground" />
           <input
             type="text"
@@ -468,6 +468,7 @@ export default function SessionsPage() {
         </div>
 
         {/* Content */}
+        <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="divide-y divide-border">
             {[1, 2, 3].map((i) => (
@@ -497,6 +498,7 @@ export default function SessionsPage() {
             </TabsContent>
           ))
         )}
+        </div>
       </Tabs>
 
       {/* タブ追加モーダル */}
