@@ -1,5 +1,9 @@
 # Agent Guide
 
+## Commit Messages
+
+- Write commit messages in English.
+
 ## プロジェクト概要
 
 `~/.claude/` からセッション一覧を読み込み、`claude --resume <sessionId>` コマンドをすばやくコピーできる Web アプリ。
@@ -21,10 +25,6 @@ src/
 
 Web のみ（Tauri なし）: `pnpm dev:web`
 Tauri も含めて全部起動: `pnpm dev`
-
-## コミットメッセージ
-
-コミットメッセージは**英語**で書くこと。
 
 ## 主要コマンド
 
@@ -54,6 +54,7 @@ import { Button } from "@/components/ui/button";
 | `tsconfig.server.json` | サーバー | NodeNext |
 
 サーバー側の import は `.js` 拡張子が必要（NodeNext）:
+
 ```ts
 import sessionsRouter from "./routes/sessions.js";
 ```
@@ -88,6 +89,7 @@ pnpm test:watch   # ウォッチモード
 - パフォーマンスのため `fs.open` + byte range read（readline ストリームは使わない）
 
 **フィルタ条件（`lastUserMessage`）:**
+
 - `type === "user"`
 - `isMeta !== true`
 - `typeof message.content === "string"`（tool_result は配列なのでスキップ）
@@ -102,7 +104,7 @@ pnpm test:watch   # ウォッチモード
 ## UI の注意点
 
 - カード間の区切りは `divide-y divide-border`（Card コンポーネント自体は `border-0 ring-0`）
-- タブバーは Ghostty 風（`bg-muted/40`、アクティブタブのみ `bg-background`）
+- タブバーは Ghostty 風（`bg-muted`、アクティブタブのみ `bg-background`）
 - プレビューで CSS の確認が難しい場合は `preview_snapshot`（アクセシビリティツリー）を使う
 
 ## pnpm 設定
