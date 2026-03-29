@@ -1,0 +1,20 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Agent Session Selector",
+        "center": true,
+        "width": 500,
+        "height": 860,
+        "minWidth": 500,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "titleBarStyle": "Visible",
+        "shadow": true
+      }
+    ]
+  }
+}

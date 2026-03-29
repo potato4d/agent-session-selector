@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,14 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const cargoBin = path.join(os.homedir(), ".cargo", "bin");
+const platformConfigPath =
+  process.platform === "darwin"
+    ? path.join("src-tauri", "tauri.macos.conf.json")
+    : process.platform === "win32"
+      ? path.join("src-tauri", "tauri.windows.conf.json")
+      : process.platform === "linux"
+        ? path.join("src-tauri", "tauri.linux.conf.json")
+        : null;
 
 function withCargoPath(separator) {
   const currentPath = process.env.PATH ?? "";
@@ -40,7 +49,14 @@ if (!pnpmExecPath) {
   process.exit(1);
 }
 
-run(process.execPath, [pnpmExecPath, "exec", "tauri", ...args], {
+const tauriArgs =
+  platformConfigPath &&
+  fs.existsSync(path.join(rootDir, platformConfigPath)) &&
+  args.length > 0
+    ? [args[0], "--config", platformConfigPath, ...args.slice(1)]
+    : args;
+
+run(process.execPath, [pnpmExecPath, "exec", "tauri", ...tauriArgs], {
   ...process.env,
   PATH: withCargoPath(process.platform === "win32" ? ";" : ":"),
 });
