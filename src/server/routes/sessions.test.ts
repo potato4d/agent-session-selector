@@ -305,4 +305,149 @@ describe("GET /api/sessions", () => {
     expect(res.status).toBe(200);
     expect(res.body.sessions[0].project).toBe("(unknown project)");
   });
+
+  it("counts turnCount correctly (excludes /exit)", async () => {
+    await setupMocks();
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    // MOCK_JSONL has 2 user messages ("hello world" and "follow-up question"), neither is /exit
+    expect(res.body.sessions[0].turnCount).toBe(2);
+  });
+
+  it("excludes isMeta messages from firstMessage, lastUserMessage, and turnCount", async () => {
+    await setupMocks();
+    const fs = (await import("fs/promises")).default;
+
+    const jsonlWithMeta = [
+      JSON.stringify({
+        type: "user",
+        isMeta: true,
+        message: { role: "user", content: "meta init message" },
+        cwd: "/home/user/project",
+        uuid: "u0",
+        timestamp: "2026-01-01T09:59:00.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "real first message" },
+        uuid: "u1",
+        timestamp: "2026-01-01T10:00:01.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+    ].join("\n");
+
+    const buf = Buffer.from(jsonlWithMeta);
+    vi.mocked(fs.open).mockResolvedValue({
+      stat: async () => ({ size: buf.length }),
+      read: async (b: Buffer, offset: number, length: number, position: number) => {
+        buf.copy(b, offset, position, position + length);
+        return { bytesRead: length };
+      },
+      close: async () => {},
+    } as any);
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    const session = res.body.sessions[0];
+    expect(session.firstMessage).toBe("real first message");
+    expect(session.lastUserMessage).toBe("real first message");
+    expect(session.turnCount).toBe(1);
+  });
+
+  it("skips tool_result messages (array content) for firstMessage and lastUserMessage", async () => {
+    await setupMocks();
+    const fs = (await import("fs/promises")).default;
+
+    const jsonlWithToolResult = [
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }],
+        },
+        cwd: "/home/user/project",
+        uuid: "u1",
+        timestamp: "2026-01-01T10:00:01.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "actual user message" },
+        uuid: "u2",
+        timestamp: "2026-01-01T10:01:00.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+    ].join("\n");
+
+    const buf = Buffer.from(jsonlWithToolResult);
+    vi.mocked(fs.open).mockResolvedValue({
+      stat: async () => ({ size: buf.length }),
+      read: async (b: Buffer, offset: number, length: number, position: number) => {
+        buf.copy(b, offset, position, position + length);
+        return { bytesRead: length };
+      },
+      close: async () => {},
+    } as any);
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    const session = res.body.sessions[0];
+    expect(session.firstMessage).toBe("actual user message");
+    expect(session.lastUserMessage).toBe("actual user message");
+    expect(session.turnCount).toBe(1);
+  });
+
+  it("handles malformed JSONL lines gracefully", async () => {
+    await setupMocks();
+    const fs = (await import("fs/promises")).default;
+
+    const jsonlWithBadLines = [
+      "not valid json at all",
+      "{truncated",
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: "valid message" },
+        cwd: "/home/user/project",
+        uuid: "u1",
+        timestamp: "2026-01-01T10:00:01.000Z",
+        sessionId: "aaaa-bbbb",
+      }),
+    ].join("\n");
+
+    const buf = Buffer.from(jsonlWithBadLines);
+    vi.mocked(fs.open).mockResolvedValue({
+      stat: async () => ({ size: buf.length }),
+      read: async (b: Buffer, offset: number, length: number, position: number) => {
+        buf.copy(b, offset, position, position + length);
+        return { bytesRead: length };
+      },
+      close: async () => {},
+    } as any);
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    const session = res.body.sessions[0];
+    expect(session.firstMessage).toBe("valid message");
+    expect(session.turnCount).toBe(1);
+  });
+
+  it("returns empty list when projects directory is missing", async () => {
+    const fs = (await import("fs/promises")).default;
+    vi.mocked(fs.readdir).mockRejectedValue(new Error("ENOENT"));
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    expect(res.body.sessions).toEqual([]);
+  });
+
+  it("uses lastTimestamp from the last entry with a timestamp", async () => {
+    await setupMocks();
+
+    const res = await request(app).get("/api/sessions");
+    expect(res.status).toBe(200);
+    // The last entry in MOCK_JSONL with a timestamp is the assistant message at 10:15
+    expect(res.body.sessions[0].lastActivity).toBe("2026-01-01T10:15:00.000Z");
+  });
 });
