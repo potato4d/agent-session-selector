@@ -427,7 +427,7 @@ export default function SessionsPage() {
   return (
     <div className="flex flex-col">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0">
-        <div className="sticky top-0 z-20 flex items-stretch border-b border-border bg-muted/40">
+        <div className="sticky top-0 z-20 flex items-stretch border-b border-border bg-muted">
           <div className="scrollbar-hidden flex-1 overflow-x-auto">
             <TabsList
               aria-label="Visible projects"

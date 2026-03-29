@@ -1,31 +1,31 @@
 # Agent Session Selector
 
-Claude Code のセッションを一覧・検索し、`claude --resume <sessionId>` をすばやくコピーできるアプリです。
+Agent Session Selector is an app for browsing Claude Code sessions and quickly copying `claude --resume <sessionId>`.
 
-ブラウザで使う Web アプリとしても、Tauri の薄いデスクトップ shell としても動きます。
+It can run either as a browser-based web app or as a thin Tauri desktop shell.
 
-## 機能
+## Features
 
-- `~/.claude/` からセッション一覧を読み込む
-- プロジェクトごとにタブで整理する
-- セッション名、メッセージ、ID で絞り込む
-- `claude --resume <sessionId>` をワンクリックでコピーする
-- 実行中のアクティブセッションを表示する
+- Read session data from `~/.claude/`
+- Organize sessions by project with tabs
+- Filter by session title, message text, and session ID
+- Copy `claude --resume <sessionId>` with one click
+- Show currently active sessions
 
-## 技術スタック
+## Tech Stack
 
 - Client: React 19 + Vite + TypeScript + Tailwind CSS v4
 - Server: Express + TypeScript
 - Desktop shell: Tauri v2
 - Test: Vitest + Supertest
 
-## 動作要件
+## Requirements
 
 - Node.js 20+
 - pnpm 10+
-- `~/.claude/` に Claude Code のセッションがあること
+- Existing Claude Code session data under `~/.claude/`
 
-## セットアップ
+## Setup
 
 ```bash
 git clone <your-fork-or-repo-url>
@@ -33,7 +33,7 @@ cd agent-session-selector
 pnpm install
 ```
 
-## Web アプリとして起動
+## Run as a Web App
 
 ```bash
 pnpm dev
@@ -42,47 +42,47 @@ pnpm dev
 - Client: `http://127.0.0.1:6814`
 - Server: `http://127.0.0.1:6815`
 
-## Tauri アプリとして起動
+## Run as a Tauri App
 
 ```bash
 pnpm tauri:dev
 ```
 
-`pnpm tauri:dev` は内部で Vite と Express も起動します。
+`pnpm tauri:dev` also starts Vite and Express internally.
 
-## macOS で clone してから起動するまで
+## macOS: From Clone to First Run
 
-### 1. リポジトリを clone
+### 1. Clone the repository
 
 ```bash
 git clone <your-fork-or-repo-url>
 cd agent-session-selector
 ```
 
-### 2. Xcode Command Line Tools を入れる
+### 2. Install Xcode Command Line Tools
 
 ```bash
 xcode-select --install
 ```
 
-インストール後、必要なら一度ターミナルを開き直してください。
+After installation, reopen your terminal if needed.
 
-### 3. Rust を入れる
+### 3. Install Rust
 
 ```bash
 curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
 ```
 
-シェル設定を反映したら、確認します。
+After your shell configuration is reloaded, verify the installation:
 
 ```bash
 rustc --version
 cargo --version
 ```
 
-### 4. Node.js と pnpm を使える状態にする
+### 4. Make sure Node.js and pnpm are available
 
-Node.js 20 以上を入れたうえで、`pnpm` がない場合は有効化します。
+Install Node.js 20 or later first. If `pnpm` is not already available, enable it with Corepack:
 
 ```bash
 corepack enable
@@ -90,33 +90,33 @@ corepack prepare pnpm@10.33.0 --activate
 pnpm --version
 ```
 
-### 5. 依存を入れる
+### 5. Install dependencies
 
 ```bash
 pnpm install
 ```
 
-### 6. Tauri で起動する
+### 6. Start the Tauri app
 
 ```bash
 pnpm tauri:dev
 ```
 
-### 7. 配布用ビルドを作る
+### 7. Create a production build
 
 ```bash
 pnpm tauri:build
 ```
 
-## テストとチェック
+## Checks and Tests
 
 ```bash
 pnpm typecheck
 pnpm test
 ```
 
-## 補足
+## Notes
 
-- `pnpm dev` はブラウザ向けの開発サーバーです
-- `pnpm tauri:dev` はデスクトップ shell で開発するためのコマンドです
-- 現在の Tauri は薄い shell で、UI 本体は既存の React + Express をそのまま使っています
+- `pnpm dev` starts the browser-focused development server
+- `pnpm tauri:dev` starts the desktop shell for local development
+- The current Tauri setup is intentionally thin, and the UI still uses the existing React + Express app
