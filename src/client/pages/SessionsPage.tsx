@@ -388,7 +388,7 @@ export default function SessionsPage() {
         className="gap-0"
       >
         {/* Tab bar */}
-        <div className="flex items-stretch border-b border-border bg-muted/40">
+        <div className="sticky top-0 z-20 flex items-stretch border-b border-border bg-muted/40">
           <div className="scrollbar-hidden flex-1 overflow-x-auto">
             <TabsList className="flex h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
               {loading
@@ -458,7 +458,7 @@ export default function SessionsPage() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <div className="sticky top-9 z-10 flex items-center gap-2 border-b border-border bg-background px-3 py-2">
           <Search size={14} className="shrink-0 text-muted-foreground" />
           <input
             type="text"
