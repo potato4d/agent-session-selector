@@ -34,6 +34,7 @@ interface Session {
 }
 
 const STORAGE_KEY = "cc-session-selector:visible-projects";
+const LAST_ACTIVE_TAB_KEY = "cc-session-selector:last-active-tab";
 const DEFAULT_TAB_LIMIT = 10;
 
 function loadStoredVisibleProjects(): Set<string> | null {
@@ -48,6 +49,18 @@ function loadStoredVisibleProjects(): Set<string> | null {
 
 function saveVisibleProjects(projects: string[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function loadLastActiveTab(): string | null {
+  try {
+    return localStorage.getItem(LAST_ACTIVE_TAB_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveLastActiveTab(project: string) {
+  localStorage.setItem(LAST_ACTIVE_TAB_KEY, project);
 }
 
 function sessionsByProject(sessions: Session[]): Map<string, Session[]> {
@@ -350,9 +363,20 @@ export default function SessionsPage() {
 
   useEffect(() => {
     if (visibleProjects.length > 0 && !activeTab) {
-      setActiveTab(visibleProjects[0]);
+      const lastTab = loadLastActiveTab();
+      if (lastTab && visibleProjects.includes(lastTab)) {
+        setActiveTab(lastTab);
+      } else {
+        setActiveTab(visibleProjects[0]);
+      }
     }
   }, [visibleProjects, activeTab]);
+
+  useEffect(() => {
+    if (activeTab) {
+      saveLastActiveTab(activeTab);
+    }
+  }, [activeTab]);
 
   function hideProject(project: string) {
     setVisibleProjects((prev) => {
