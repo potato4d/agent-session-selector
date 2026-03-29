@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:client\"",
+    "dev": "pnpm tauri:dev",
+    "dev:web": "concurrently \"pnpm dev:server\" \"pnpm dev:client\"",
     "dev:server": "tsx watch src/server/index.ts",
     "dev:client": "vite",
     "build": "pnpm build:client && pnpm build:server",

@@ -19,7 +19,8 @@ src/
 | Client   | http://localhost:6814  | `pnpm dev:client` |
 | Server   | http://localhost:6815  | `pnpm dev:server` |
 
-両方まとめて起動: `pnpm dev`
+Web のみ（Tauri なし）: `pnpm dev:web`
+Tauri も含めて全部起動: `pnpm dev`
 
 ## 主要コマンド
 
