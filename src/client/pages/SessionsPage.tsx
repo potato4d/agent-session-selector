@@ -86,9 +86,7 @@ function formatDate(iso: string): string {
   return date.toLocaleDateString();
 }
 
-function CopyInput({ value }: { value: string }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
+function CopyCommandButton({ value }: { value: string }) {
   function handleCopy() {
     navigator.clipboard.writeText(value).then(
       () => toast.success("Copied to clipboard"),
@@ -97,24 +95,15 @@ function CopyInput({ value }: { value: string }) {
   }
 
   return (
-    <div className="flex items-stretch">
-      <input
-        ref={inputRef}
-        type="text"
-        readOnly
-        value={value}
-        onClick={() => inputRef.current?.select()}
-        onFocus={() => inputRef.current?.select()}
-        aria-label="Resume command"
-        className="min-w-0 flex-1 cursor-text rounded-l-sm rounded-r-none border border-r-0 border-border bg-muted px-3 py-2 font-mono text-xs text-foreground outline-none"
-      />
+    <div className="flex justify-end">
       <button
         type="button"
         onClick={handleCopy}
         aria-label="Copy resume command to clipboard"
-        className="shrink-0 cursor-pointer rounded-l-none rounded-r-sm border border-border bg-muted px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
-        <Copy size={14} />
+        <Copy size={12} />
+        Command
       </button>
     </div>
   );
@@ -146,7 +135,7 @@ function SessionCard({ s }: { s: Session }) {
         )}
       </CardHeader>
       <CardContent className="space-y-2">
-        <CopyInput value={resumeCmd} />
+        <CopyCommandButton value={resumeCmd} />
         <p className="text-right text-xs text-muted-foreground">
           {formatDate(s.lastActivity)}
           {s.turnCount > 0 && (
