@@ -441,23 +441,9 @@ export default function SessionsPage() {
               className="flex h-9 shrink-0 items-center border-l border-border px-3 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
             >
               <Plus size={14} />
-              {hiddenProjects.length > 0 && (
-                <span className="ml-1 text-xs">{hiddenProjects.length}</span>
-              )}
             </button>
           )}
 
-          {/* 接続状態インジケーター */}
-          {!loading && (
-            <div
-              className="flex h-9 items-center px-2"
-              title={connected ? "リアルタイム接続中" : "接続待機中"}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-green-500" : "bg-yellow-500 animate-pulse"}`}
-              />
-            </div>
-          )}
         </div>
 
         {/* Filter bar */}
