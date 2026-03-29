@@ -2,7 +2,7 @@
 name = "agent-session-selector"
 version = "0.1.0"
 description = "Thin Tauri shell for Agent Session Selector"
-authors = ["mail"]
+authors = ["me.potato4d"]
 license = ""
 repository = ""
 edition = "2021"
