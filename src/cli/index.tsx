@@ -321,7 +321,7 @@ function SessionList({
   }
 
   return (
-    <Box flexDirection="column" flexGrow={1} overflowY="hidden">
+    <Box flexDirection="column" flexGrow={1}>
       {visible.map((s, i) => {
         const idx = start + i;
         const isActive = idx === activeIndex;
@@ -335,7 +335,7 @@ function SessionList({
             borderColor={isActive ? "cyan" : undefined}
             marginBottom={isActive ? 0 : 0}
           >
-            <Box flexDirection="row" gap={1}>
+            <Box flexDirection="row">
               <Text color={isActive ? "cyan" : "white"} bold={isActive}>
                 {truncate(s.firstMessage ?? "(no message)", 70)}
               </Text>
