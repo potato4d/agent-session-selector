@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist/client",
     "devUrl": "http://127.0.0.1:6814",
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm dev:web",
     "beforeBuildCommand": "pnpm build:client"
   },
   "mainBinaryName": "agent-session-selector",
