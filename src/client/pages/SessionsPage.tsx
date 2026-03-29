@@ -227,7 +227,7 @@ function AddTabsModal({
         </p>
         <div
           id={hiddenProjectsId}
-          className="max-h-64 overflow-y-auto"
+          className="scrollbar-hidden max-h-64 overflow-y-auto"
           aria-label="Hidden projects"
           aria-live="polite"
         >

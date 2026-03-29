@@ -8,7 +8,7 @@ export default function App() {
     <BrowserRouter>
       <div className="flex h-screen flex-col bg-background">
         <Header />
-        <main className="flex flex-1 flex-col overflow-y-auto">
+        <main className="scrollbar-hidden flex flex-1 flex-col overflow-y-auto">
           <Routes>
             <Route path="/" element={<SessionsPage />} />
           </Routes>
