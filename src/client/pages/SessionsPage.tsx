@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { Copy, Plus, Minus, Search, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Copy, Minus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -8,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ActiveSession {
@@ -51,10 +51,10 @@ function saveVisibleProjects(projects: string[]) {
 
 function sessionsByProject(sessions: Session[]): Map<string, Session[]> {
   const map = new Map<string, Session[]>();
-  for (const s of sessions) {
-    const list = map.get(s.project) ?? [];
-    list.push(s);
-    map.set(s.project, list);
+  for (const session of sessions) {
+    const list = map.get(session.project) ?? [];
+    list.push(session);
+    map.set(session.project, list);
   }
   return map;
 }
@@ -63,22 +63,26 @@ function shortLabel(project: string): string {
   const parts = project.replace(/\\/g, "/").split("/").filter(Boolean);
   const tail = parts.slice(-5);
   return tail
-    .map((part, i) => (i < tail.length - 1 ? part[0] : part))
+    .map((part, index) => (index < tail.length - 1 ? part[0] : part))
     .join("/");
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
+  const date = new Date(iso);
   const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
+
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString();
+
+  return date.toLocaleDateString();
 }
 
 function CopyInput({ value }: { value: string }) {
@@ -99,12 +103,15 @@ function CopyInput({ value }: { value: string }) {
         readOnly
         value={value}
         onClick={() => inputRef.current?.select()}
-        className="min-w-0 flex-1 rounded-l-sm rounded-r-none border border-r-0 border-border bg-muted px-3 py-2 font-mono text-xs text-foreground outline-none"
+        onFocus={() => inputRef.current?.select()}
+        aria-label="Resume command"
+        className="min-w-0 flex-1 cursor-text rounded-l-sm rounded-r-none border border-r-0 border-border bg-muted px-3 py-2 font-mono text-xs text-foreground outline-none"
       />
       <button
+        type="button"
         onClick={handleCopy}
-        className="shrink-0 rounded-l-none rounded-r-sm border border-border bg-muted px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        aria-label="Copy to clipboard"
+        aria-label="Copy resume command to clipboard"
+        className="shrink-0 cursor-pointer rounded-l-none rounded-r-sm border border-border bg-muted px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <Copy size={14} />
       </button>
@@ -133,7 +140,7 @@ function SessionCard({ s }: { s: Session }) {
         </CardDescription>
         {s.lastUserMessage && s.lastUserMessage !== s.firstMessage && (
           <p className="truncate text-xs text-muted-foreground/70">
-            ↩ {s.lastUserMessage}
+            Latest: {s.lastUserMessage}
           </p>
         )}
       </CardHeader>
@@ -142,17 +149,16 @@ function SessionCard({ s }: { s: Session }) {
         <p className="text-right text-xs text-muted-foreground">
           {formatDate(s.lastActivity)}
           {s.turnCount > 0 && (
-            <span className="ml-2 font-mono">{s.turnCount}往復</span>
+            <span className="ml-2 font-mono">{s.turnCount} turns</span>
           )}
-          {" · "}
-          <span className="font-mono">{s.sessionId.slice(0, 8)}…</span>
+          {" | "}
+          <span className="font-mono">{s.sessionId.slice(0, 8)}...</span>
         </p>
       </CardContent>
     </Card>
   );
 }
 
-/** プロジェクト追加/復元モーダル */
 function AddTabsModal({
   hiddenProjects,
   onAdd,
@@ -162,61 +168,92 @@ function AddTabsModal({
   onAdd: (project: string) => void;
   onClose: () => void;
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const filterInputId = useId();
+  const hiddenProjectsId = useId();
   const [filter, setFilter] = useState("");
+
   const filtered = filter.trim()
-    ? hiddenProjects.filter((p) =>
-        p.toLowerCase().includes(filter.trim().toLowerCase())
+    ? hiddenProjects.filter((project) =>
+        project.toLowerCase().includes(filter.trim().toLowerCase()),
       )
     : hiddenProjects;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+      role="presentation"
     >
-      <div className="w-[480px] max-w-[90vw] rounded-lg border border-border bg-background shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        className="w-[480px] max-w-[90vw] rounded-lg border border-border bg-background shadow-xl"
+      >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-sm font-medium">タブを追加</span>
+          <span id={titleId} className="text-sm font-medium">
+            Add tabs
+          </span>
           <button
+            type="button"
             onClick={onClose}
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label="Close add tabs dialog"
+            className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <X size={14} />
           </button>
         </div>
         <div className="border-b border-border px-4 py-2">
+          <label htmlFor={filterInputId} className="sr-only">
+            Filter hidden projects
+          </label>
           <input
+            id={filterInputId}
             autoFocus
             type="text"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="プロジェクトを検索…"
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Filter projects..."
+            aria-controls={hiddenProjectsId}
+            className="w-full cursor-text bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
         </div>
-        <div className="max-h-64 overflow-y-auto">
+        <p id={descriptionId} className="sr-only">
+          Select a hidden project to show it as a tab.
+        </p>
+        <div
+          id={hiddenProjectsId}
+          className="max-h-64 overflow-y-auto"
+          aria-label="Hidden projects"
+          aria-live="polite"
+        >
           {filtered.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               {hiddenProjects.length === 0
-                ? "すべてのタブを表示中"
-                : "該当なし"}
+                ? "All projects are already visible."
+                : "No projects match the current filter."}
             </p>
           ) : (
-            filtered.map((p) => (
+            filtered.map((project) => (
               <button
-                key={p}
-                onClick={() => onAdd(p)}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-accent"
+                key={project}
+                type="button"
+                onClick={() => onAdd(project)}
+                aria-label={`Show tab for ${project}`}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-accent"
               >
                 <Plus size={12} className="shrink-0 text-muted-foreground" />
                 <span className="min-w-0 truncate font-mono text-xs">
-                  {shortLabel(p)}
+                  {shortLabel(project)}
                 </span>
                 <span
                   className="ml-auto shrink-0 truncate text-xs text-muted-foreground"
-                  title={p}
+                  title={project}
                 >
-                  {p.length > 40 ? "…" + p.slice(-37) : p}
+                  {project.length > 40 ? "..." + project.slice(-37) : project}
                 </span>
               </button>
             ))
@@ -231,24 +268,21 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(false);
   const [query, setQuery] = useState("");
   const [visibleProjects, setVisibleProjects] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const initializedRef = useRef(false);
 
-  // SSE でリアルタイム受信
   useEffect(() => {
     const es = new EventSource("/api/sessions/events");
 
-    es.onopen = () => setConnected(true);
-
-    es.onmessage = (e) => {
+    es.onmessage = (event) => {
       try {
-        const msg = JSON.parse(e.data as string) as
+        const msg = JSON.parse(event.data as string) as
           | { type: "connected" }
           | { type: "sessions"; sessions: Session[] };
+
         if (msg.type === "sessions") {
           setSessions(msg.sessions);
           setLoading(false);
@@ -260,68 +294,69 @@ export default function SessionsPage() {
     };
 
     es.onerror = () => {
-      setConnected(false);
-      setError("サーバーへの接続が切れました。再接続を試みています…");
+      setError("Server connection was lost. Retrying automatically.");
     };
 
     return () => es.close();
   }, []);
 
-  // 手動再読み込み（既存イベントとの互換）
   useEffect(() => {
     const handler = () => {
-      // SSE が動いているので特に何もしない（2秒以内に自動更新される）
-      toast.info("SSEで自動更新中…");
+      toast.info("Session stream reconnect is handled automatically.");
     };
+
     window.addEventListener("sessions:refetch", handler);
     return () => window.removeEventListener("sessions:refetch", handler);
   }, []);
 
-  // 全プロジェクト（最終更新順）
   const allProjects = useCallback(() => {
     const grouped = sessionsByProject(sessions);
     return [...grouped.keys()].sort((a, b) => {
-      const aLatest = grouped.get(a)![0].lastActivity;
-      const bLatest = grouped.get(b)![0].lastActivity;
+      const aLatest = grouped.get(a)?.[0]?.lastActivity ?? "";
+      const bLatest = grouped.get(b)?.[0]?.lastActivity ?? "";
       return bLatest.localeCompare(aLatest);
     });
   }, [sessions]);
 
-  // セッション読み込み後、初回のみ表示プロジェクトを初期化
   useEffect(() => {
     if (loading || initializedRef.current) return;
     initializedRef.current = true;
 
     const projects = allProjects();
     const stored = loadStoredVisibleProjects();
+
     if (stored && stored.size > 0) {
-      // 保存済みを使いつつ、存在するプロジェクトのみ残す
-      const valid = projects.filter((p) => stored.has(p));
-      setVisibleProjects(valid.length > 0 ? valid : projects.slice(0, DEFAULT_TAB_LIMIT));
-    } else {
-      setVisibleProjects(projects.slice(0, DEFAULT_TAB_LIMIT));
+      const valid = projects.filter((project) => stored.has(project));
+      setVisibleProjects(
+        valid.length > 0 ? valid : projects.slice(0, DEFAULT_TAB_LIMIT),
+      );
+      return;
     }
+
+    setVisibleProjects(projects.slice(0, DEFAULT_TAB_LIMIT));
   }, [loading, allProjects]);
 
-  // 新しいプロジェクトが増えたらアクティブセッションのあるものを自動追加
   useEffect(() => {
     if (loading || !initializedRef.current) return;
+
     const projects = allProjects();
     setVisibleProjects((prev) => {
       const prevSet = new Set(prev);
-      // アクティブセッションがあるプロジェクトは自動的に表示
       const grouped = sessionsByProject(sessions);
       const activeProjects = projects.filter(
-        (p) => !prevSet.has(p) && grouped.get(p)?.some((s) => s.isActive)
+        (project) =>
+          !prevSet.has(project) &&
+          grouped.get(project)?.some((session) => session.isActive),
       );
+
       if (activeProjects.length === 0) return prev;
+
       const next = [...prev, ...activeProjects];
       saveVisibleProjects(next);
       return next;
     });
   }, [sessions, loading, allProjects]);
 
-  // activeTab の自動設定
   useEffect(() => {
     if (visibleProjects.length > 0 && !activeTab) {
       setActiveTab(visibleProjects[0]);
@@ -330,11 +365,13 @@ export default function SessionsPage() {
 
   function hideProject(project: string) {
     setVisibleProjects((prev) => {
-      const next = prev.filter((p) => p !== project);
+      const next = prev.filter((entry) => entry !== project);
       saveVisibleProjects(next);
+
       if (activeTab === project) {
         setActiveTab(next[0]);
       }
+
       return next;
     });
   }
@@ -342,32 +379,34 @@ export default function SessionsPage() {
   function addProject(project: string) {
     setVisibleProjects((prev) => {
       if (prev.includes(project)) return prev;
+
       const next = [...prev, project];
       saveVisibleProjects(next);
       return next;
     });
+
     setActiveTab(project);
     setShowAddModal(false);
   }
 
   const normalized = query.trim().toLowerCase();
-
   const grouped = sessionsByProject(sessions);
   const projects = allProjects();
-  // 表示中タブ（visibleProjects に含まれ、かつセッションが存在するもの）
-  const tabProjects = visibleProjects.filter((p) => grouped.has(p));
-  // 非表示プロジェクト（全プロジェクトのうち表示していないもの）
-  const hiddenProjects = projects.filter((p) => !visibleProjects.includes(p));
+  const tabProjects = visibleProjects.filter((project) => grouped.has(project));
+  const hiddenProjects = projects.filter(
+    (project) => !visibleProjects.includes(project),
+  );
 
   function getSessionsForProject(project: string): Session[] {
     const all = grouped.get(project) ?? [];
     if (!normalized || project !== activeTab) return all;
+
     return all.filter(
-      (s) =>
-        s.firstMessage?.toLowerCase().includes(normalized) ||
-        s.lastUserMessage?.toLowerCase().includes(normalized) ||
-        s.project.toLowerCase().includes(normalized) ||
-        s.sessionId.toLowerCase().includes(normalized),
+      (session) =>
+        session.firstMessage?.toLowerCase().includes(normalized) ||
+        session.lastUserMessage?.toLowerCase().includes(normalized) ||
+        session.project.toLowerCase().includes(normalized) ||
+        session.sessionId.toLowerCase().includes(normalized),
     );
   }
 
@@ -385,93 +424,101 @@ export default function SessionsPage() {
 
   return (
     <div className="flex flex-col">
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="gap-0"
-      >
-        {/* Tab bar */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-0">
         <div className="sticky top-0 z-20 flex items-stretch border-b border-border bg-muted/40">
           <div className="scrollbar-hidden flex-1 overflow-x-auto">
-            <TabsList className="flex h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
+            <TabsList
+              aria-label="Visible projects"
+              className="flex h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0"
+            >
               {loading
-                ? [80, 110].map((w) => (
+                ? [80, 110].map((width) => (
                     <div
-                      key={w}
+                      key={width}
                       className="flex h-9 shrink-0 items-center border-r border-border px-4"
                     >
                       <div
                         className="animate-pulse rounded bg-muted-foreground/20"
-                        style={{ width: w, height: 10 }}
+                        style={{ width, height: 10 }}
                       />
                     </div>
                   ))
                 : tabProjects.map((project) => (
-                    <TabsTrigger
+                    <div
                       key={project}
-                      value={project}
-                      title={project}
-                      className={`${tabTriggerClass} group shrink-0 flex-none`}
+                      role="presentation"
+                      className="group/tab relative shrink-0"
                     >
-                      <span className="font-mono">{shortLabel(project)}</span>
-                      <span className="ml-1.5 text-muted-foreground/60">
-                        {grouped.get(project)!.length}
-                      </span>
-                      {/* 「-」で非表示ボタン */}
+                      <TabsTrigger
+                        value={project}
+                        title={project}
+                        aria-label={`${project} (${grouped.get(project)?.length ?? 0} sessions)`}
+                        className={`${tabTriggerClass} h-9 shrink-0 flex-none pr-8`}
+                      >
+                        <span className="font-mono">{shortLabel(project)}</span>
+                        <span className="ml-1.5 text-muted-foreground/60">
+                          {grouped.get(project)?.length ?? 0}
+                        </span>
+                      </TabsTrigger>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          hideProject(project);
-                        }}
-                        title="タブを非表示"
-                        className="ml-1.5 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-60 hover:!opacity-100 hover:bg-muted-foreground/20"
+                        type="button"
+                        onClick={() => hideProject(project)}
+                        title={`Hide ${project}`}
+                        aria-label={`Hide tab for ${project}`}
+                        className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded opacity-0 transition-opacity group-hover/tab:opacity-60 group-focus-within/tab:opacity-60 hover:!opacity-100 hover:bg-muted-foreground/20"
                       >
                         <Minus size={10} />
                       </button>
-                    </TabsTrigger>
+                    </div>
                   ))}
             </TabsList>
           </div>
 
-          {/* 「+」タブ追加ボタン */}
           {!loading && (
             <button
+              type="button"
               onClick={() => setShowAddModal(true)}
-              title="タブを追加"
-              className="flex h-9 shrink-0 items-center border-l border-border px-3 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              title="Add visible tab"
+              aria-label="Add visible tab"
+              className="flex h-9 shrink-0 cursor-pointer items-center border-l border-border px-3 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
             >
               <Plus size={14} />
             </button>
           )}
-
         </div>
 
-        {/* Filter bar */}
         <div className="sticky top-9 z-10 flex items-center gap-2 border-b border-border bg-background px-3 py-2">
           <Search size={14} className="shrink-0 text-muted-foreground" />
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter sessions…"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter sessions..."
             disabled={loading}
-            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none disabled:opacity-40"
+            aria-label="Filter sessions"
+            className="flex-1 cursor-text bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none disabled:cursor-not-allowed disabled:opacity-40"
           />
           {query && (
             <button
+              type="button"
               onClick={() => setQuery("")}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              aria-label="Clear session filter"
+              className="cursor-pointer text-xs text-muted-foreground hover:text-foreground"
             >
               Clear
             </button>
           )}
         </div>
 
-        {/* Content */}
         {loading ? (
-          <div className="divide-y divide-border">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="animate-pulse space-y-3 px-4 py-4">
+          <div
+            className="divide-y divide-border"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading sessions"
+          >
+            {[1, 2, 3].map((index) => (
+              <div key={index} className="animate-pulse space-y-3 px-4 py-4">
                 <div className="h-3 w-2/3 rounded bg-muted-foreground/20" />
                 <div className="h-3 w-1/3 rounded bg-muted-foreground/10" />
                 <div className="h-8 rounded-sm bg-muted-foreground/10" />
@@ -479,19 +526,21 @@ export default function SessionsPage() {
             ))}
           </div>
         ) : error && sessions.length === 0 ? (
-          <p className="p-6 text-sm text-destructive">{error}</p>
+          <p className="p-6 text-sm text-destructive" role="alert">
+            {error}
+          </p>
         ) : tabProjects.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">
+          <p className="p-6 text-sm text-muted-foreground" role="status">
             {projects.length === 0
               ? "No sessions found."
-              : "すべてのタブが非表示です。「+」から追加できます。"}
+              : "All projects are hidden. Use the plus button to show a tab."}
           </p>
         ) : (
           tabProjects.map((project) => (
             <TabsContent key={project} value={project} className="mt-0">
               <div className="divide-y divide-border">
-                {getSessionsForProject(project).map((s) => (
-                  <SessionCard key={s.sessionId} s={s} />
+                {getSessionsForProject(project).map((session) => (
+                  <SessionCard key={session.sessionId} s={session} />
                 ))}
               </div>
             </TabsContent>
@@ -499,7 +548,6 @@ export default function SessionsPage() {
         )}
       </Tabs>
 
-      {/* タブ追加モーダル */}
       {showAddModal && (
         <AddTabsModal
           hiddenProjects={hiddenProjects}
