@@ -351,22 +351,25 @@ export default function SessionsPage() {
   }
 
   const normalized = query.trim().toLowerCase();
-  const filtered = normalized
-    ? sessions.filter(
-        (s) =>
-          s.firstMessage?.toLowerCase().includes(normalized) ||
-          s.lastUserMessage?.toLowerCase().includes(normalized) ||
-          s.project.toLowerCase().includes(normalized) ||
-          s.sessionId.toLowerCase().includes(normalized)
-      )
-    : sessions;
 
-  const grouped = sessionsByProject(filtered);
+  const grouped = sessionsByProject(sessions);
   const projects = allProjects();
   // 表示中タブ（visibleProjects に含まれ、かつセッションが存在するもの）
   const tabProjects = visibleProjects.filter((p) => grouped.has(p));
   // 非表示プロジェクト（全プロジェクトのうち表示していないもの）
   const hiddenProjects = projects.filter((p) => !visibleProjects.includes(p));
+
+  function getSessionsForProject(project: string): Session[] {
+    const all = grouped.get(project) ?? [];
+    if (!normalized || project !== activeTab) return all;
+    return all.filter(
+      (s) =>
+        s.firstMessage?.toLowerCase().includes(normalized) ||
+        s.lastUserMessage?.toLowerCase().includes(normalized) ||
+        s.project.toLowerCase().includes(normalized) ||
+        s.sessionId.toLowerCase().includes(normalized),
+    );
+  }
 
   const tabTriggerClass = `relative h-9 rounded-none border-r border-border px-3 text-xs text-muted-foreground
     transition-none
@@ -501,7 +504,7 @@ export default function SessionsPage() {
           tabProjects.map((project) => (
             <TabsContent key={project} value={project} className="mt-0">
               <div className="divide-y divide-border">
-                {(grouped.get(project) ?? []).map((s) => (
+                {getSessionsForProject(project).map((s) => (
                   <SessionCard key={s.sessionId} s={s} />
                 ))}
               </div>
