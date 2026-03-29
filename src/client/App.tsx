@@ -6,9 +6,9 @@ import { Toaster } from "@/components/ui/sonner";
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-background">
+      <div className="flex h-screen flex-col bg-background">
         <Header />
-        <main className="flex flex-col">
+        <main className="flex flex-1 flex-col overflow-y-auto">
           <Routes>
             <Route path="/" element={<SessionsPage />} />
           </Routes>
