@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Minus, Plus, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Minus, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { getApiBaseUrl } from "@/lib/runtime";
@@ -37,6 +37,7 @@ type SortDir = "asc" | "desc";
 
 const STORAGE_KEY = "cc-session-selector:visible-projects";
 const LAST_ACTIVE_TAB_KEY = "cc-session-selector:last-active-tab";
+const DELETED_SESSIONS_KEY = "cc-session-selector:deleted-sessions";
 const DEFAULT_TAB_LIMIT = 10;
 
 function loadStoredVisibleProjects(): Set<string> | null {
@@ -63,6 +64,20 @@ function loadLastActiveTab(): string | null {
 
 function saveLastActiveTab(project: string) {
   localStorage.setItem(LAST_ACTIVE_TAB_KEY, project);
+}
+
+function loadDeletedSessions(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_SESSIONS_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDeletedSessions(ids: Set<string>) {
+  localStorage.setItem(DELETED_SESSIONS_KEY, JSON.stringify([...ids]));
 }
 
 function sessionsByProject(sessions: Session[]): Map<string, Session[]> {
@@ -110,22 +125,29 @@ function CopyCommandButton({ value }: { value: string }) {
   }
 
   return (
-    <div className="flex justify-end">
-      <button
-        type="button"
-        onClick={handleCopy}
-        aria-label="Copy resume command to clipboard"
-        className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <Copy size={12} />
-        Command
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label="Copy resume command to clipboard"
+      className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <Copy size={12} />
+      Command
+    </button>
   );
 }
 
-function SessionCard({ s }: { s: Session }) {
+function SessionCard({ s, onDelete }: { s: Session; onDelete: () => void }) {
+  const [confirming, setConfirming] = useState(false);
   const resumeCmd = `claude --resume ${s.sessionId}`;
+
+  function handleDeleteClick() {
+    if (confirming) {
+      onDelete();
+    } else {
+      setConfirming(true);
+    }
+  }
 
   return (
     <Card className="rounded-none border-0 ring-0 transition-colors hover:bg-accent">
@@ -153,7 +175,23 @@ function SessionCard({ s }: { s: Session }) {
             <span className="ml-2 font-mono">{s.turnCount} turns</span>
           )}
         </p>
-        <CopyCommandButton value={resumeCmd} />
+        <div className="flex justify-end gap-1.5">
+          <CopyCommandButton value={resumeCmd} />
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            onBlur={() => setConfirming(false)}
+            aria-label={confirming ? "Confirm delete session" : "Delete session"}
+            title={confirming ? "Click again to confirm delete" : "Delete session"}
+            className={`flex cursor-pointer items-center rounded-sm border px-2.5 py-1.5 text-xs transition-colors ${
+              confirming
+                ? "border-red-500 bg-red-500/10 text-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]"
+                : "border-border bg-muted text-muted-foreground hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-500"
+            }`}
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -274,6 +312,9 @@ export default function SessionsPage() {
   const [visibleProjects, setVisibleProjects] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
+  const [deletedSessions, setDeletedSessions] = useState<Set<string>>(
+    () => loadDeletedSessions(),
+  );
   const initializedRef = useRef(false);
   const apiBaseUrl = getApiBaseUrl();
 
@@ -392,6 +433,15 @@ export default function SessionsPage() {
     setShowAddModal(false);
   }
 
+  function deleteSession(sessionId: string) {
+    setDeletedSessions((prev) => {
+      const next = new Set(prev);
+      next.add(sessionId);
+      saveDeletedSessions(next);
+      return next;
+    });
+  }
+
   const normalized = query.trim().toLowerCase();
   const grouped = sessionsByProject(sessions);
   const tabProjects = visibleProjects.filter((project) => grouped.has(project));
@@ -410,7 +460,9 @@ export default function SessionsPage() {
   }
 
   function getSessionsForProject(project: string): Session[] {
-    const all = grouped.get(project) ?? [];
+    const all = (grouped.get(project) ?? []).filter(
+      (session) => !deletedSessions.has(session.sessionId),
+    );
     const filtered =
       normalized && project === activeTab
         ? all.filter(
@@ -583,7 +635,11 @@ export default function SessionsPage() {
             <TabsContent key={project} value={project} className="mt-0">
               <div className="divide-y divide-border">
                 {getSessionsForProject(project).map((session) => (
-                  <SessionCard key={session.sessionId} s={session} />
+                  <SessionCard
+                    key={session.sessionId}
+                    s={session}
+                    onDelete={() => deleteSession(session.sessionId)}
+                  />
                 ))}
               </div>
             </TabsContent>
