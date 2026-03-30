@@ -150,8 +150,6 @@ function SessionCard({ s }: { s: Session }) {
           {s.turnCount > 0 && (
             <span className="ml-2 font-mono">{s.turnCount} turns</span>
           )}
-          {" | "}
-          <span className="font-mono">{s.sessionId.slice(0, 8)}...</span>
         </p>
       </CardContent>
     </Card>
