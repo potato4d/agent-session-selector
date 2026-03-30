@@ -81,6 +81,7 @@ const TERMINAL_CANDIDATES: TerminalCandidate[] = [
   { bin: "alacritty",       args: (id) => ["-e", "claude", "--resume", id] },
   { bin: "kitty",           args: (id) => ["claude", "--resume", id] },
   { bin: "wezterm",         args: (id) => ["start", "--", "claude", "--resume", id] },
+  { bin: "tabby",           args: (id) => ["run", "claude", "--resume", id] },
   // Linux
   { bin: "gnome-terminal",  args: (id) => ["--", "claude", "--resume", id] },
   { bin: "konsole",         args: (id) => ["-e", "claude", "--resume", id] },
