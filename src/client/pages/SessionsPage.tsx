@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Minus, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Minus, Play, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { getApiBaseUrl } from "@/lib/runtime";
@@ -132,12 +132,41 @@ function CopyCommandButton({ value }: { value: string }) {
       className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <Copy size={12} />
-      Command
+      Copy
     </button>
   );
 }
 
-function SessionCard({ s, onDelete }: { s: Session; onDelete: () => void }) {
+function LaunchButton({ sessionId, apiBaseUrl }: { sessionId: string; apiBaseUrl: string }) {
+  async function handleLaunch() {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/sessions/${sessionId}/launch`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        toast.success("Launched in terminal");
+      } else {
+        const body = await res.json() as { error?: string };
+        toast.error(body.error ?? "Failed to launch");
+      }
+    } catch {
+      toast.error("Failed to launch");
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleLaunch}
+      aria-label="Launch session in terminal"
+      className="flex cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <Play size={12} />
+    </button>
+  );
+}
+
+function SessionCard({ s, onDelete, apiBaseUrl }: { s: Session; onDelete: () => void; apiBaseUrl: string }) {
   const [confirming, setConfirming] = useState(false);
   const resumeCmd = `claude --resume ${s.sessionId}`;
 
@@ -176,6 +205,7 @@ function SessionCard({ s, onDelete }: { s: Session; onDelete: () => void }) {
           )}
         </p>
         <div className="flex justify-end gap-1.5">
+          <LaunchButton sessionId={s.sessionId} apiBaseUrl={apiBaseUrl} />
           <CopyCommandButton value={resumeCmd} />
           <button
             type="button"
@@ -639,6 +669,7 @@ export default function SessionsPage() {
                     key={session.sessionId}
                     s={session}
                     onDelete={() => deleteSession(session.sessionId)}
+                    apiBaseUrl={apiBaseUrl}
                   />
                 ))}
               </div>
