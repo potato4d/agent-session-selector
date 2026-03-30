@@ -128,7 +128,7 @@ function SessionCard({ s }: { s: Session }) {
   const resumeCmd = `claude --resume ${s.sessionId}`;
 
   return (
-    <Card className="rounded-none border-0 ring-0 transition-colors hover:bg-accent">
+    <Card className="rounded-none border-0 ring-0 transition-colors hover:bg-accent/60">
       <CardHeader className="pb-2">
         <div className="flex max-w-full items-center justify-between gap-2">
           <CardTitle className="min-w-0 flex-1 truncate text-sm font-medium">

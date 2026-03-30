@@ -9,6 +9,16 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      #[cfg(target_os = "macos")]
+      {
+        use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+        if let Some(window) = app.get_webview_window("main") {
+          apply_vibrancy(&window, NSVisualEffectMaterial::UnderWindowBackground, None, None)
+            .ok();
+        }
+      }
+
       Ok(())
     })
     .run(tauri::generate_context!())
