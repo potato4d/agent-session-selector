@@ -1,3 +1,4 @@
+import { access } from "fs/promises";
 import { spawn } from "child_process";
 import { Router } from "express";
 import { getSessions } from "../lib/claudeSessions.js";
@@ -56,12 +57,46 @@ router.get("/events", (req, res) => {
 // Session IDs are UUIDs or UUID-like identifiers (hex + hyphens only).
 const SESSION_ID_RE = /^[0-9a-f-]{36,}$/i;
 
+interface TerminalCandidate {
+  bin: string;
+  args: (sessionId: string) => string[];
+  preCheck?: () => Promise<boolean>;
+}
+
+async function appBundleExists(appPath: string): Promise<boolean> {
+  try {
+    await access(appPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Allowlist of known terminal emulators with their argument style.
 // Using spawn (not exec) with explicit arg arrays — no shell interpolation.
-const TERMINAL_CANDIDATES: Array<{ bin: string; args: (sessionId: string) => string[] }> = [
-  { bin: "gnome-terminal", args: (id) => ["--", "claude", "--resume", id] },
+// macOS .app bundles are launched via osascript with a preCheck to confirm the bundle exists.
+const TERMINAL_CANDIDATES: TerminalCandidate[] = [
+  // Cross-platform
+  { bin: "ghostty",         args: (id) => ["-e", "claude", "--resume", id] },
+  { bin: "alacritty",       args: (id) => ["-e", "claude", "--resume", id] },
+  { bin: "kitty",           args: (id) => ["claude", "--resume", id] },
+  { bin: "wezterm",         args: (id) => ["start", "--", "claude", "--resume", id] },
+  // Linux
+  { bin: "gnome-terminal",  args: (id) => ["--", "claude", "--resume", id] },
+  { bin: "konsole",         args: (id) => ["-e", "claude", "--resume", id] },
   { bin: "x-terminal-emulator", args: (id) => ["-e", "claude", "--resume", id] },
-  { bin: "xterm", args: (id) => ["-e", "claude", "--resume", id] },
+  { bin: "xterm",           args: (id) => ["-e", "claude", "--resume", id] },
+  // macOS — sessionId is UUID-validated (hex + hyphens), safe to include in AppleScript string
+  {
+    bin: "osascript",
+    preCheck: () => appBundleExists("/Applications/iTerm.app"),
+    args: (id) => ["-e", `tell application "iTerm" to create window with default profile command "claude --resume ${id}"`],
+  },
+  {
+    bin: "osascript",
+    preCheck: () => appBundleExists("/Applications/Utilities/Terminal.app"),
+    args: (id) => ["-e", `tell application "Terminal" to do script "claude --resume ${id}"`],
+  },
 ];
 
 function trySpawnTerminal(bin: string, args: string[]): Promise<void> {
@@ -76,7 +111,8 @@ function trySpawnTerminal(bin: string, args: string[]): Promise<void> {
 }
 
 async function launchInTerminal(sessionId: string): Promise<void> {
-  for (const { bin, args } of TERMINAL_CANDIDATES) {
+  for (const { bin, args, preCheck } of TERMINAL_CANDIDATES) {
+    if (preCheck && !(await preCheck())) continue;
     try {
       await trySpawnTerminal(bin, args(sessionId));
       return;
