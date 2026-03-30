@@ -45,7 +45,7 @@ describe("getActiveSessions", () => {
   it("ignores malformed files and non-json entries", async () => {
     const fileSystem = {
       readdir: async (target: string) =>
-        target.endsWith("\\sessions") ? ["good.json", "broken.json", "notes.txt"] : [],
+        target.endsWith("/sessions") ? ["good.json", "broken.json", "notes.txt"] : [],
       readFile: async (target: string) => {
         if (target.endsWith("good.json")) {
           return JSON.stringify({
@@ -69,7 +69,7 @@ describe("getActiveSessions", () => {
     };
 
     const sessions = await getActiveSessions({
-      claudeDir: "C:\\Users\\mail\\.claude",
+      claudeDir: "/home/user/.claude",
       fileSystem: fileSystem as any,
     });
 
@@ -158,15 +158,15 @@ describe("getSessions", () => {
 
     const fileSystem = {
       readdir: async (target: string) => {
-        if (target.endsWith("\\projects")) {
+        if (target.endsWith("/projects")) {
           return ["project-a", "not-a-dir", "broken-project"];
         }
 
-        if (target.endsWith("\\sessions")) {
+        if (target.endsWith("/sessions")) {
           return ["alpha.json"];
         }
 
-        if (target.endsWith("\\project-a")) {
+        if (target.endsWith("/project-a")) {
           return ["alpha.jsonl", "beta.jsonl"];
         }
 
@@ -187,18 +187,18 @@ describe("getSessions", () => {
         throw new Error("unexpected readFile");
       },
       stat: async (target: string) => {
-        if (target.endsWith("\\project-a")) {
+        if (target.endsWith("/project-a")) {
           return createDirectoryStat();
         }
 
-        if (target.endsWith("\\not-a-dir")) {
+        if (target.endsWith("/not-a-dir")) {
           return createFileStat({
             birthtime: "2026-01-01T00:00:00.000Z",
             mtime: "2026-01-01T00:00:00.000Z",
           });
         }
 
-        if (target.endsWith("\\broken-project")) {
+        if (target.endsWith("/broken-project")) {
           throw new Error("cannot stat project");
         }
 
@@ -232,7 +232,7 @@ describe("getSessions", () => {
     };
 
     const sessions = await getSessions({
-      claudeDir: "C:\\Users\\mail\\.claude",
+      claudeDir: "/home/user/.claude",
       fileSystem: fileSystem as any,
     });
 
