@@ -9,7 +9,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex h-screen flex-col bg-background">
+      <div className="flex h-screen flex-col bg-background tauri-macos:bg-transparent">
         {showHeader && <Header />}
         <main className="scrollbar-hidden flex flex-1 flex-col overflow-y-auto">
           <Routes>
