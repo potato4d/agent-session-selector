@@ -29,10 +29,10 @@ interface Session {
   createdAt: string;
   isActive: boolean;
   active: ActiveSession | null;
-  turnCount: number;
+  messageCount: number;
 }
 
-type SortKey = "turns" | "lastMessage";
+type SortKey = "messages" | "lastMessage";
 type SortDir = "asc" | "desc";
 
 const STORAGE_KEY = "cc-session-selector:visible-projects";
@@ -171,8 +171,8 @@ function SessionCard({ s, onDelete }: { s: Session; onDelete: () => void }) {
       <CardContent className="space-y-2">
         <p className="text-right text-xs text-muted-foreground">
           {formatDate(s.lastActivity)}
-          {s.turnCount > 0 && (
-            <span className="ml-2 font-mono">{s.turnCount} turns</span>
+          {s.messageCount > 0 && (
+            <span className="ml-2 font-mono">{s.messageCount} messages</span>
           )}
         </p>
         <div className="flex justify-end gap-1.5">
@@ -452,8 +452,8 @@ export default function SessionsPage() {
   function sortSessions(sessions: Session[]): Session[] {
     return [...sessions].sort((a, b) => {
       const cmp =
-        sortKey === "turns"
-          ? a.turnCount - b.turnCount
+        sortKey === "messages"
+          ? a.messageCount - b.messageCount
           : a.lastActivity.localeCompare(b.lastActivity);
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -578,14 +578,14 @@ export default function SessionsPage() {
             <button
               type="button"
               onClick={() =>
-                setSortKey((k) => (k === "turns" ? "lastMessage" : "turns"))
+                setSortKey((k) => (k === "messages" ? "lastMessage" : "messages"))
               }
-              aria-label={`Sort by ${sortKey === "turns" ? "last message" : "turns"}`}
-              title={`Sort key: ${sortKey === "turns" ? "turns" : "last message"} (click to toggle)`}
+              aria-label={`Sort by ${sortKey === "messages" ? "last message" : "messages"}`}
+              title={`Sort key: ${sortKey === "messages" ? "messages" : "last message"} (click to toggle)`}
               className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <ArrowUpDown size={11} />
-              {sortKey === "turns" ? "turns" : "lastMsg"}
+              {sortKey === "messages" ? "messages" : "lastMsg"}
             </button>
             <button
               type="button"
