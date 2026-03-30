@@ -48,7 +48,7 @@ interface SessionFileInfo {
   lastUserMessage: string | null;
   lastTimestamp: string | null;
   cwd: string | null;
-  turnCount: number;
+  messageCount: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -85,7 +85,7 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
   let lastUserMessage: string | null = null;
   let lastTimestamp: string | null = null;
   let cwd: string | null = null;
-  let turnCount = 0;
+  let messageCount = 0;
 
   try {
     const fh = await fs.open(filePath, "r");
@@ -116,7 +116,7 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
           cwd ??= readEntryCwd(entry);
           if (isUserMessage(entry)) {
             if (!firstMessage) firstMessage = entry.message.content;
-            if (entry.message.content !== "/exit") turnCount++;
+            if (entry.message.content !== "/exit") messageCount++;
           }
         } catch {
           // skip malformed JSON lines
@@ -150,7 +150,7 @@ async function readSessionFileInfo(filePath: string): Promise<SessionFileInfo> {
     // ignore
   }
 
-  return { firstMessage, lastUserMessage, lastTimestamp, cwd, turnCount };
+  return { firstMessage, lastUserMessage, lastTimestamp, cwd, messageCount };
 }
 
 export interface SessionEntry {
@@ -162,7 +162,7 @@ export interface SessionEntry {
   createdAt: string;
   isActive: boolean;
   active: ActiveSession | null;
-  turnCount: number;
+  messageCount: number;
 }
 
 export async function getSessions(): Promise<SessionEntry[]> {
@@ -188,7 +188,7 @@ export async function getSessions(): Promise<SessionEntry[]> {
               const filePath = path.join(projectPath, file);
               const fileStat = await fs.stat(filePath);
 
-              const { firstMessage, lastUserMessage, lastTimestamp, cwd, turnCount } =
+              const { firstMessage, lastUserMessage, lastTimestamp, cwd, messageCount } =
                 await readSessionFileInfo(filePath);
 
               const active = activeSessions.get(sessionId);
@@ -202,7 +202,7 @@ export async function getSessions(): Promise<SessionEntry[]> {
                 createdAt: fileStat.birthtime.toISOString(),
                 isActive: !!active,
                 active: active ?? null,
-                turnCount,
+                messageCount,
               };
             })
           );

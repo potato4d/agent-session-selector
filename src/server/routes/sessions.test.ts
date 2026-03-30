@@ -306,16 +306,16 @@ describe("GET /api/sessions", () => {
     expect(res.body.sessions[0].project).toBe("(unknown project)");
   });
 
-  it("counts turnCount correctly (excludes /exit)", async () => {
+  it("counts messageCount correctly (excludes /exit)", async () => {
     await setupMocks();
 
     const res = await request(app).get("/api/sessions");
     expect(res.status).toBe(200);
     // MOCK_JSONL has 2 user messages ("hello world" and "follow-up question"), neither is /exit
-    expect(res.body.sessions[0].turnCount).toBe(2);
+    expect(res.body.sessions[0].messageCount).toBe(2);
   });
 
-  it("excludes isMeta messages from firstMessage, lastUserMessage, and turnCount", async () => {
+  it("excludes isMeta messages from firstMessage, lastUserMessage, and messageCount", async () => {
     await setupMocks();
     const fs = (await import("fs/promises")).default;
 
@@ -353,7 +353,7 @@ describe("GET /api/sessions", () => {
     const session = res.body.sessions[0];
     expect(session.firstMessage).toBe("real first message");
     expect(session.lastUserMessage).toBe("real first message");
-    expect(session.turnCount).toBe(1);
+    expect(session.messageCount).toBe(1);
   });
 
   it("skips tool_result messages (array content) for firstMessage and lastUserMessage", async () => {
@@ -396,7 +396,7 @@ describe("GET /api/sessions", () => {
     const session = res.body.sessions[0];
     expect(session.firstMessage).toBe("actual user message");
     expect(session.lastUserMessage).toBe("actual user message");
-    expect(session.turnCount).toBe(1);
+    expect(session.messageCount).toBe(1);
   });
 
   it("handles malformed JSONL lines gracefully", async () => {
@@ -430,7 +430,7 @@ describe("GET /api/sessions", () => {
     expect(res.status).toBe(200);
     const session = res.body.sessions[0];
     expect(session.firstMessage).toBe("valid message");
-    expect(session.turnCount).toBe(1);
+    expect(session.messageCount).toBe(1);
   });
 
   it("returns empty list when projects directory is missing", async () => {
