@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Copy, Minus, Plus, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Minus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { getApiBaseUrl } from "@/lib/runtime";
@@ -31,6 +31,9 @@ interface Session {
   active: ActiveSession | null;
   turnCount: number;
 }
+
+type SortKey = "turns" | "lastMessage";
+type SortDir = "asc" | "desc";
 
 const STORAGE_KEY = "cc-session-selector:visible-projects";
 const LAST_ACTIVE_TAB_KEY = "cc-session-selector:last-active-tab";
@@ -268,6 +271,8 @@ export default function SessionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("lastMessage");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [visibleProjects, setVisibleProjects] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
@@ -396,17 +401,29 @@ export default function SessionsPage() {
     (project) => !visibleProjects.includes(project),
   );
 
+  function sortSessions(sessions: Session[]): Session[] {
+    return [...sessions].sort((a, b) => {
+      const cmp =
+        sortKey === "turns"
+          ? a.turnCount - b.turnCount
+          : a.lastActivity.localeCompare(b.lastActivity);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }
+
   function getSessionsForProject(project: string): Session[] {
     const all = grouped.get(project) ?? [];
-    if (!normalized || project !== activeTab) return all;
-
-    return all.filter(
-      (session) =>
-        session.firstMessage?.toLowerCase().includes(normalized) ||
-        session.lastUserMessage?.toLowerCase().includes(normalized) ||
-        session.project.toLowerCase().includes(normalized) ||
-        session.sessionId.toLowerCase().includes(normalized),
-    );
+    const filtered =
+      normalized && project === activeTab
+        ? all.filter(
+            (session) =>
+              session.firstMessage?.toLowerCase().includes(normalized) ||
+              session.lastUserMessage?.toLowerCase().includes(normalized) ||
+              session.project.toLowerCase().includes(normalized) ||
+              session.sessionId.toLowerCase().includes(normalized),
+          )
+        : all;
+    return sortSessions(filtered);
   }
 
   const tabTriggerClass = `relative h-9 rounded-none border-r border-border px-3 text-xs text-muted-foreground
@@ -507,6 +524,35 @@ export default function SessionsPage() {
               Clear
             </button>
           )}
+          <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2">
+            <button
+              type="button"
+              onClick={() =>
+                setSortKey((k) => (k === "turns" ? "lastMessage" : "turns"))
+              }
+              aria-label={`Sort by ${sortKey === "turns" ? "last message" : "turns"}`}
+              title={`Sort key: ${sortKey === "turns" ? "turns" : "last message"} (click to toggle)`}
+              className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ArrowUpDown size={11} />
+              {sortKey === "turns" ? "turns" : "lastMsg"}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+              }
+              aria-label={`Sort direction: ${sortDir === "asc" ? "ascending" : "descending"} (click to toggle)`}
+              title={sortDir === "asc" ? "Ascending" : "Descending"}
+              className="flex cursor-pointer items-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {sortDir === "asc" ? (
+                <ArrowUp size={12} />
+              ) : (
+                <ArrowDown size={12} />
+              )}
+            </button>
+          </div>
         </div>
 
         {loading ? (
