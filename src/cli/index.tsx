@@ -1,264 +1,62 @@
 #!/usr/bin/env tsx
-/**
- * Agent Session Selector - TUI (Terminal UI)
- *
- * 操作:
- *   ← / →  タブ（プロジェクト）切り替え
- *   ↑ / ↓  セッション選択
- *   c / Enter  resume コマンドをクリップボードにコピー（または stdout 出力）
- *   /      検索フィルター
- *   Esc    検索クリア
- *   q / Ctrl-C  終了
- */
 
-import React, { useState, useEffect, useCallback } from "react";
-import { render, Text, Box, useInput, useApp, useStdout } from "ink";
-import fs from "fs/promises";
-import os from "os";
-import path from "path";
 import { execSync } from "child_process";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Box, Text, render, useApp, useInput, useStdout } from "ink";
+import { getSessions, type SessionEntry } from "../server/lib/claudeSessions.js";
 
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-
-interface ActiveSession {
-  pid: number;
-  sessionId: string;
-  cwd: string;
-  startedAt: number;
-  kind: string;
-  entrypoint: string;
-}
-
-interface Session {
-  sessionId: string;
-  project: string;
-  firstMessage: string | null;
-  lastUserMessage: string | null;
-  lastActivity: string;
-  createdAt: string;
-  isActive: boolean;
-  active: ActiveSession | null;
-  turnCount: number;
-}
-
-// ─────────────────────────────────────────────
-// Session loading (same logic as server)
-// ─────────────────────────────────────────────
-
-const CLAUDE_DIR = path.join(os.homedir(), ".claude");
-const PROJECTS_DIR = path.join(CLAUDE_DIR, "projects");
-const SESSIONS_DIR = path.join(CLAUDE_DIR, "sessions");
-const UNKNOWN_PROJECT = "(unknown project)";
-const HEAD = 8192;
-const TAIL = 262144;
-const MAX_FULL = 4 * 1024 * 1024;
-
-function readEntryCwd(entry: unknown): string | null {
-  if (
-    typeof entry === "object" &&
-    entry !== null &&
-    "cwd" in entry &&
-    typeof (entry as { cwd?: unknown }).cwd === "string"
-  ) {
-    return (entry as { cwd: string }).cwd;
-  }
-  return null;
-}
-
-async function getActiveSessions(): Promise<Map<string, ActiveSession>> {
-  const map = new Map<string, ActiveSession>();
-  try {
-    const files = await fs.readdir(SESSIONS_DIR);
-    await Promise.all(
-      files
-        .filter((f) => f.endsWith(".json"))
-        .map(async (f) => {
-          try {
-            const raw = await fs.readFile(path.join(SESSIONS_DIR, f), "utf-8");
-            const session = JSON.parse(raw) as ActiveSession;
-            map.set(session.sessionId, session);
-          } catch {
-            // ignore
-          }
-        })
-    );
-  } catch {
-    // sessions dir may not exist
-  }
-  return map;
-}
-
-async function readSessionFileInfo(filePath: string) {
-  let firstMessage: string | null = null;
-  let lastUserMessage: string | null = null;
-  let lastTimestamp: string | null = null;
-  let cwd: string | null = null;
-  let turnCount = 0;
-
-  try {
-    const fh = await fs.open(filePath, "r");
-    try {
-      const { size } = await fh.stat();
-      let lines: string[];
-
-      if (size <= MAX_FULL) {
-        const buf = Buffer.alloc(size);
-        await fh.read(buf, 0, size, 0);
-        lines = buf.toString("utf-8").split("\n");
-      } else {
-        const headBuf = Buffer.alloc(HEAD);
-        await fh.read(headBuf, 0, HEAD, 0);
-        const tailBuf = Buffer.alloc(TAIL);
-        await fh.read(tailBuf, 0, TAIL, size - TAIL);
-        lines = [
-          ...headBuf.toString("utf-8").split("\n"),
-          ...tailBuf.toString("utf-8").split("\n"),
-        ];
-      }
-
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line);
-          cwd ??= readEntryCwd(entry);
-          if (
-            entry.type === "user" &&
-            !entry.isMeta &&
-            typeof entry.message?.content === "string"
-          ) {
-            if (!firstMessage) firstMessage = entry.message.content;
-            if (entry.message.content !== "/exit") turnCount++;
-          }
-        } catch {
-          // skip
-        }
-      }
-
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const entry = JSON.parse(lines[i]);
-          cwd ??= readEntryCwd(entry);
-          if (!lastTimestamp && entry.timestamp) lastTimestamp = entry.timestamp;
-          if (
-            !lastUserMessage &&
-            entry.type === "user" &&
-            !entry.isMeta &&
-            typeof entry.message?.content === "string" &&
-            entry.message.content !== "/exit"
-          ) {
-            lastUserMessage = entry.message.content;
-          }
-          if (cwd && lastTimestamp && lastUserMessage) break;
-        } catch {
-          // skip
-        }
-      }
-    } finally {
-      await fh.close();
-    }
-  } catch {
-    // ignore
-  }
-
-  return { firstMessage, lastUserMessage, lastTimestamp, cwd, turnCount };
-}
-
-async function loadSessions(): Promise<Session[]> {
-  const [projectDirs, activeSessions] = await Promise.all([
-    fs.readdir(PROJECTS_DIR).catch(() => [] as string[]),
-    getActiveSessions(),
-  ]);
-
-  const sessions = (
-    await Promise.all(
-      projectDirs.map(async (dir) => {
-        try {
-          const projectPath = path.join(PROJECTS_DIR, dir);
-          const stat = await fs.stat(projectPath);
-          if (!stat.isDirectory()) return [];
-
-          const files = await fs.readdir(projectPath);
-          const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
-
-          return Promise.all(
-            jsonlFiles.map(async (file) => {
-              const sessionId = file.replace(".jsonl", "");
-              const filePath = path.join(projectPath, file);
-              const fileStat = await fs.stat(filePath);
-              const { firstMessage, lastUserMessage, lastTimestamp, cwd, turnCount } =
-                await readSessionFileInfo(filePath);
-              const active = activeSessions.get(sessionId);
-              return {
-                sessionId,
-                project: active?.cwd ?? cwd ?? UNKNOWN_PROJECT,
-                firstMessage,
-                lastUserMessage,
-                lastActivity: lastTimestamp ?? fileStat.mtime.toISOString(),
-                createdAt: fileStat.birthtime.toISOString(),
-                isActive: !!active,
-                active: active ?? null,
-                turnCount,
-              };
-            })
-          );
-        } catch {
-          return [];
-        }
-      })
-    )
-  ).flat();
-
-  sessions.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
-  return sessions;
-}
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
+type Session = SessionEntry;
 
 function shortLabel(project: string): string {
   const parts = project.replace(/\\/g, "/").split("/").filter(Boolean);
   const tail = parts.slice(-3);
-  return tail.map((part, i) => (i < tail.length - 1 ? part[0] : part)).join("/");
+  return tail.map((part, index) => (index < tail.length - 1 ? part[0] : part)).join("/");
 }
 
-function truncate(str: string, max: number): string {
-  return str.length > max ? str.slice(0, max - 1) + "…" : str;
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
+  const date = new Date(iso);
   const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  const diffMinutes = Math.floor((now.getTime() - date.getTime()) / 60000);
+
+  if (diffMinutes < 1) {
+    return "just now";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+
+  return `${Math.floor(diffHours / 24)}d ago`;
 }
 
 function copyToClipboard(text: string): boolean {
-  try {
-    // Linux: xclip / xsel / wl-copy
-    for (const cmd of ["xclip -selection clipboard", "xsel --clipboard --input", "wl-copy"]) {
-      try {
-        execSync(cmd, { input: text, stdio: ["pipe", "ignore", "ignore"] });
-        return true;
-      } catch {
-        // try next
-      }
+  for (const command of [
+    "xclip -selection clipboard",
+    "xsel --clipboard --input",
+    "wl-copy",
+  ]) {
+    try {
+      execSync(command, {
+        input: text,
+        stdio: ["pipe", "ignore", "ignore"],
+      });
+      return true;
+    } catch {
+      // Try the next command.
     }
-  } catch {
-    // ignore
   }
+
   return false;
 }
-
-// ─────────────────────────────────────────────
-// Components
-// ─────────────────────────────────────────────
 
 function TabBar({
   projects,
@@ -269,31 +67,34 @@ function TabBar({
   activeIndex: number;
   columns: number;
 }) {
-  // 表示できるタブ数を計算して、アクティブなタブが見えるようにスクロール
   const tabWidth = 16;
-  const maxVisible = Math.max(1, Math.floor(columns / tabWidth));
-  const start = Math.max(0, Math.min(activeIndex - Math.floor(maxVisible / 2), projects.length - maxVisible));
-  const visible = projects.slice(start, start + maxVisible);
+  const visibleCount = Math.max(1, Math.floor(columns / tabWidth));
+  const start = Math.max(
+    0,
+    Math.min(activeIndex - Math.floor(visibleCount / 2), projects.length - visibleCount),
+  );
+  const visibleProjects = projects.slice(start, start + visibleCount);
 
   return (
     <Box borderStyle="single" borderBottom flexDirection="row" flexWrap="nowrap" height={3}>
-      {start > 0 && <Text color="gray">‹ </Text>}
-      {visible.map((p, i) => {
-        const idx = start + i;
-        const isActive = idx === activeIndex;
+      {start > 0 && <Text color="gray">{"< "}</Text>}
+      {visibleProjects.map((project, index) => {
+        const projectIndex = start + index;
+        const isActive = projectIndex === activeIndex;
+
         return (
-          <Box key={p} marginRight={1}>
+          <Box key={project} marginRight={1}>
             <Text
               backgroundColor={isActive ? "white" : undefined}
               color={isActive ? "black" : "gray"}
               bold={isActive}
             >
-              {` ${truncate(shortLabel(p), tabWidth - 2)} `}
+              {` ${truncate(shortLabel(project), tabWidth - 2)} `}
             </Text>
           </Box>
         );
       })}
-      {start + maxVisible < projects.length && <Text color="gray"> ›</Text>}
+      {start + visibleCount < projects.length && <Text color="gray">{" >"}</Text>}
     </Box>
   );
 }
@@ -307,49 +108,49 @@ function SessionList({
   activeIndex: number;
   height: number;
 }) {
-  const ITEM_HEIGHT = 4;
-  const maxVisible = Math.max(1, Math.floor(height / ITEM_HEIGHT));
-  const start = Math.max(0, Math.min(activeIndex - Math.floor(maxVisible / 2), sessions.length - maxVisible));
-  const visible = sessions.slice(start, start + maxVisible);
+  const itemHeight = 4;
+  const visibleCount = Math.max(1, Math.floor(height / itemHeight));
+  const start = Math.max(
+    0,
+    Math.min(activeIndex - Math.floor(visibleCount / 2), sessions.length - visibleCount),
+  );
+  const visibleSessions = sessions.slice(start, start + visibleCount);
 
   if (sessions.length === 0) {
     return (
       <Box flexGrow={1} alignItems="center" justifyContent="center">
-        <Text color="gray">セッションなし</Text>
+        <Text color="gray">No sessions found.</Text>
       </Box>
     );
   }
 
   return (
     <Box flexDirection="column" flexGrow={1}>
-      {visible.map((s, i) => {
-        const idx = start + i;
-        const isActive = idx === activeIndex;
+      {visibleSessions.map((session, index) => {
+        const sessionIndex = start + index;
+        const isActive = sessionIndex === activeIndex;
+
         return (
           <Box
-            key={s.sessionId}
+            key={session.sessionId}
             flexDirection="column"
             paddingX={1}
-            paddingY={0}
             borderStyle={isActive ? "single" : undefined}
             borderColor={isActive ? "cyan" : undefined}
-            marginBottom={isActive ? 0 : 0}
           >
             <Box flexDirection="row">
               <Text color={isActive ? "cyan" : "white"} bold={isActive}>
-                {truncate(s.firstMessage ?? "(no message)", 70)}
+                {truncate(session.firstMessage ?? "(no message)", 70)}
               </Text>
-              {s.isActive && <Text color="green"> ● active</Text>}
+              {session.isActive && <Text color="green"> active</Text>}
             </Box>
-            {s.lastUserMessage && s.lastUserMessage !== s.firstMessage && (
-              <Text color="gray">  ↩ {truncate(s.lastUserMessage, 65)}</Text>
+            {session.lastUserMessage && session.lastUserMessage !== session.firstMessage && (
+              <Text color="gray">  Latest: {truncate(session.lastUserMessage, 65)}</Text>
             )}
             <Text color="gray" dimColor>
-              {" "}
-              {formatDate(s.lastActivity)}
-              {s.turnCount > 0 ? `  ${s.turnCount}往復` : ""}
-              {"  "}
-              <Text color="gray">{s.sessionId.slice(0, 12)}…</Text>
+              {` ${formatDate(session.lastActivity)}`}
+              {session.messageCount > 0 ? `  ${session.messageCount} messages` : ""}
+              {`  ${session.sessionId.slice(0, 12)}...`}
             </Text>
           </Box>
         );
@@ -359,12 +160,15 @@ function SessionList({
 }
 
 function SearchBar({ query, active }: { query: string; active: boolean }) {
-  if (!active && !query) return null;
+  if (!active && !query) {
+    return null;
+  }
+
   return (
     <Box borderStyle="single" borderTop height={3} paddingX={1}>
       <Text color="yellow">/ </Text>
       <Text>{query}</Text>
-      {active && <Text color="yellow">█</Text>}
+      {active && <Text color="yellow">_</Text>}
     </Box>
   );
 }
@@ -383,24 +187,20 @@ function StatusBar({
   return (
     <Box height={1} justifyContent="space-between" paddingX={1}>
       {copied ? (
-        <Text color="green">✓ コピー済み</Text>
+        <Text color="green">Command copied</Text>
       ) : message ? (
         <Text color="yellow">{message}</Text>
       ) : (
         <Text color="gray" dimColor>
-          ←→タブ  ↑↓選択  c/Enter コピー  /検索  q終了
+          Tabs: left/right  Sessions: up/down  copy: c or Enter  search: /  quit: q
         </Text>
       )}
       <Text color="gray" dimColor>
-        {projectCount}proj  {sessionCount}sess
+        {`${projectCount}proj  ${sessionCount}sess`}
       </Text>
     </Box>
   );
 }
-
-// ─────────────────────────────────────────────
-// Main App
-// ─────────────────────────────────────────────
 
 function App() {
   const { exit } = useApp();
@@ -416,57 +216,81 @@ function App() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | undefined>(undefined);
+  const [statusMessage, setStatusMessage] = useState<string>();
 
-  // Load sessions
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await loadSessions();
-      setSessions(data);
-    } catch (e) {
-      setError(String(e));
+      setError(null);
+      setSessions(await getSessions());
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 5000);
-    return () => clearInterval(interval);
+    void refresh();
+    const interval = setInterval(() => {
+      void refresh();
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+    };
   }, [refresh]);
 
-  // Auto-refresh indicator
   useEffect(() => {
-    if (copied) {
-      const t = setTimeout(() => setCopied(false), 2000);
-      return () => clearTimeout(t);
+    if (!copied) {
+      return;
     }
+
+    const timeout = setTimeout(() => {
+      setCopied(false);
+    }, 2000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
   }, [copied]);
 
-  // Derived data
-  const filtered = query
-    ? sessions.filter(
-        (s) =>
-          s.firstMessage?.toLowerCase().includes(query.toLowerCase()) ||
-          s.lastUserMessage?.toLowerCase().includes(query.toLowerCase()) ||
-          s.project.toLowerCase().includes(query.toLowerCase())
-      )
-    : sessions;
+  const filteredSessions = useMemo(() => {
+    if (!query) {
+      return sessions;
+    }
 
-  const projectMap = new Map<string, Session[]>();
-  for (const s of filtered) {
-    const list = projectMap.get(s.project) ?? [];
-    list.push(s);
-    projectMap.set(s.project, list);
-  }
+    const normalizedQuery = query.toLowerCase();
+    return sessions.filter(
+      (session) =>
+        session.firstMessage?.toLowerCase().includes(normalizedQuery) ||
+        session.lastUserMessage?.toLowerCase().includes(normalizedQuery) ||
+        session.project.toLowerCase().includes(normalizedQuery) ||
+        session.sessionId.toLowerCase().includes(normalizedQuery),
+    );
+  }, [query, sessions]);
 
-  const projects = [...projectMap.keys()].sort((a, b) => {
-    const aLatest = projectMap.get(a)![0].lastActivity;
-    const bLatest = projectMap.get(b)![0].lastActivity;
-    return bLatest.localeCompare(aLatest);
-  });
+  const projectMap = useMemo(() => {
+    const grouped = new Map<string, Session[]>();
+
+    for (const session of filteredSessions) {
+      const projectSessions = grouped.get(session.project) ?? [];
+      projectSessions.push(session);
+      grouped.set(session.project, projectSessions);
+    }
+
+    return grouped;
+  }, [filteredSessions]);
+
+  const projects = useMemo(
+    () =>
+      [...projectMap.keys()].sort((left, right) => {
+        const leftLatest = projectMap.get(left)?.[0]?.lastActivity ?? "";
+        const rightLatest = projectMap.get(right)?.[0]?.lastActivity ?? "";
+        return rightLatest.localeCompare(leftLatest);
+      }),
+    [projectMap],
+  );
 
   const safeTabIndex = Math.min(tabIndex, Math.max(0, projects.length - 1));
   const currentProject = projects[safeTabIndex];
@@ -474,7 +298,6 @@ function App() {
   const safeSessionIndex = Math.min(sessionIndex, Math.max(0, currentSessions.length - 1));
   const selectedSession = currentSessions[safeSessionIndex];
 
-  // Keyboard handling
   useInput((input, key) => {
     if (searching) {
       if (key.escape || (key.ctrl && input === "c")) {
@@ -482,16 +305,19 @@ function App() {
         setQuery("");
         return;
       }
+
       if (key.return) {
         setSearching(false);
         return;
       }
+
       if (key.backspace || key.delete) {
-        setQuery((q) => q.slice(0, -1));
+        setQuery((value) => value.slice(0, -1));
         return;
       }
+
       if (input && !key.ctrl && !key.meta) {
-        setQuery((q) => q + input);
+        setQuery((value) => value + input);
       }
       return;
     }
@@ -512,58 +338,54 @@ function App() {
     }
 
     if (input === "r") {
-      refresh();
-      setStatusMsg("更新中…");
-      setTimeout(() => setStatusMsg(undefined), 1500);
+      void refresh();
+      setStatusMessage("Refreshing sessions...");
+      setTimeout(() => {
+        setStatusMessage(undefined);
+      }, 1500);
       return;
     }
 
     if (key.leftArrow || input === "h") {
-      setTabIndex((i) => Math.max(0, i - 1));
+      setTabIndex((value) => Math.max(0, value - 1));
       setSessionIndex(0);
       return;
     }
 
     if (key.rightArrow || input === "l") {
-      setTabIndex((i) => Math.min(projects.length - 1, i + 1));
+      setTabIndex((value) => Math.min(projects.length - 1, value + 1));
       setSessionIndex(0);
       return;
     }
 
     if (key.upArrow || input === "k") {
-      setSessionIndex((i) => Math.max(0, i - 1));
+      setSessionIndex((value) => Math.max(0, value - 1));
       return;
     }
 
     if (key.downArrow || input === "j") {
-      setSessionIndex((i) => Math.min(currentSessions.length - 1, i + 1));
+      setSessionIndex((value) => Math.min(currentSessions.length - 1, value + 1));
       return;
     }
 
     if ((input === "c" || key.return) && selectedSession) {
-      const cmd = `claude --resume ${selectedSession.sessionId}`;
-      const ok = copyToClipboard(cmd);
-      if (ok) {
+      const command = `claude --resume ${selectedSession.sessionId}`;
+      if (copyToClipboard(command)) {
         setCopied(true);
       } else {
-        // fallback: print to stdout after exit
-        process.stdout.write(cmd + "\n");
+        process.stdout.write(`${command}\n`);
         exit();
       }
-      return;
     }
   });
 
-  // Layout
-  const tabBarHeight = 3;
-  const statusBarHeight = 1;
   const searchBarHeight = searching || query ? 3 : 0;
-  const listHeight = rows - tabBarHeight - statusBarHeight - searchBarHeight - 2;
+  const listHeight = rows - 3 - 1 - searchBarHeight - 2;
 
   if (loading && sessions.length === 0) {
     return (
       <Box height={rows} alignItems="center" justifyContent="center">
-        <Text color="gray">セッションを読み込み中…</Text>
+        <Text color="gray">Loading sessions...</Text>
       </Box>
     );
   }
@@ -571,8 +393,8 @@ function App() {
   if (error) {
     return (
       <Box height={rows} alignItems="center" justifyContent="center" flexDirection="column">
-        <Text color="red">エラー: {error}</Text>
-        <Text color="gray">r で再試行  q で終了</Text>
+        <Text color="red">{`Error: ${error}`}</Text>
+        <Text color="gray">Press r to retry or q to quit.</Text>
       </Box>
     );
   }
@@ -580,8 +402,10 @@ function App() {
   if (projects.length === 0) {
     return (
       <Box height={rows} alignItems="center" justifyContent="center" flexDirection="column">
-        <Text color="gray">セッションが見つかりません</Text>
-        <Text color="gray" dimColor>~/.claude/projects を確認してください</Text>
+        <Text color="gray">No sessions found.</Text>
+        <Text color="gray" dimColor>
+          Expected Claude session data under ~/.claude/projects
+        </Text>
       </Box>
     );
   }
@@ -596,9 +420,9 @@ function App() {
       />
       <SearchBar query={query} active={searching} />
       <StatusBar
-        message={statusMsg}
+        message={statusMessage}
         copied={copied}
-        sessionCount={filtered.length}
+        sessionCount={filteredSessions.length}
         projectCount={projects.length}
       />
     </Box>
