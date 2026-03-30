@@ -13,8 +13,7 @@
         "fullscreen": false,
         "decorations": true,
         "titleBarStyle": "Visible",
-        "shadow": true,
-        "transparent": true
+        "shadow": true
       }
     ]
   }
