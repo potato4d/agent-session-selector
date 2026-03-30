@@ -50,6 +50,12 @@ pnpm tauri:dev
 
 `pnpm tauri:dev` also starts Vite and Express internally.
 
+Platform-specific window chrome:
+
+- macOS uses the native title bar and native traffic-light window controls
+- Windows keeps the custom frameless title bar used by the app
+- If you change Tauri window settings on macOS, fully restart `pnpm tauri:dev`; HMR is not enough
+
 ## macOS: From Clone to First Run
 
 ### 1. Clone the repository
@@ -120,3 +126,4 @@ pnpm test
 - `pnpm dev` starts the browser-focused development server
 - `pnpm tauri:dev` starts the desktop shell for local development
 - The current Tauri setup is intentionally thin, and the UI still uses the existing React + Express app
+- The desktop shell is platform-specific by design: macOS uses native window chrome, while Windows uses the custom app header
