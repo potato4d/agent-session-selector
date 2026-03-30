@@ -147,13 +147,13 @@ function SessionCard({ s }: { s: Session }) {
         )}
       </CardHeader>
       <CardContent className="space-y-2">
-        <CopyCommandButton value={resumeCmd} />
         <p className="text-right text-xs text-muted-foreground">
           {formatDate(s.lastActivity)}
           {s.turnCount > 0 && (
             <span className="ml-2 font-mono">{s.turnCount} turns</span>
           )}
         </p>
+        <CopyCommandButton value={resumeCmd} />
       </CardContent>
     </Card>
   );
