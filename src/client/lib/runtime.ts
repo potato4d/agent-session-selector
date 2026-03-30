@@ -30,6 +30,15 @@ export function getDesktopPlatform(): DesktopPlatform {
   return "web";
 }
 
+export function usesNativeWindowChrome(): boolean {
+  if (!isTauriShell()) {
+    return false;
+  }
+
+  const platform = getDesktopPlatform();
+  return platform === "macos" || platform === "windows";
+}
+
 export function getApiBaseUrl(): string {
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
   if (configuredBaseUrl) {

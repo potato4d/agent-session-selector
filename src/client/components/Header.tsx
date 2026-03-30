@@ -1,12 +1,13 @@
 import type { MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Maximize2, Minimize2, X } from "lucide-react";
-import { getDesktopPlatform, isTauriShell } from "@/lib/runtime";
+import { getDesktopPlatform, isTauriShell, usesNativeWindowChrome } from "@/lib/runtime";
 
 export default function Header() {
   const tauriShell = isTauriShell();
   const platform = getDesktopPlatform();
   const isMacos = platform === "macos";
+  const useNativeWindowChrome = usesNativeWindowChrome();
   const dragRegionProps = tauriShell
     ? ({ "data-tauri-drag-region": "true" } as const)
     : {};
@@ -42,7 +43,7 @@ export default function Header() {
     await window.close();
   }
 
-  const windowControls = tauriShell ? (
+  const windowControls = tauriShell && !useNativeWindowChrome ? (
     <div
       {...noDragRegionProps}
       className="flex items-center overflow-hidden rounded-sm border border-border bg-muted"

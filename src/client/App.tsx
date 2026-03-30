@@ -2,10 +2,10 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Header from "@/components/Header";
 import SessionsPage from "@/pages/SessionsPage";
 import { Toaster } from "@/components/ui/sonner";
-import { getDesktopPlatform, isTauriShell } from "@/lib/runtime";
+import { usesNativeWindowChrome } from "@/lib/runtime";
 
 export default function App() {
-  const showHeader = !isTauriShell() || getDesktopPlatform() !== "macos";
+  const showHeader = !usesNativeWindowChrome();
 
   return (
     <BrowserRouter>
