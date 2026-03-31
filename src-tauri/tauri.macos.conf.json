@@ -11,8 +11,7 @@
         "minHeight": 640,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true,
-        "titleBarStyle": "Visible",
+        "decorations": false,
         "shadow": true
       }
     ]

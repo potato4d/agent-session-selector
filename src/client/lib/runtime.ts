@@ -36,7 +36,7 @@ export function usesNativeWindowChrome(): boolean {
   }
 
   const platform = getDesktopPlatform();
-  return platform === "macos" || platform === "windows";
+  return platform === "windows";
 }
 
 export function getApiBaseUrl(): string {
