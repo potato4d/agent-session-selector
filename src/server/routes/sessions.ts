@@ -59,7 +59,7 @@ const SESSION_ID_RE = /^[0-9a-f-]{36,}$/i;
 
 interface TerminalCandidate {
   bin: string;
-  args: (sessionId: string) => string[];
+  args: (sessionId: string, cwd: string) => string[];
   preCheck?: () => Promise<boolean>;
 }
 
@@ -72,31 +72,58 @@ async function appBundleExists(appPath: string): Promise<boolean> {
   }
 }
 
+// Wrap str in bash single-quotes, escaping any embedded single-quotes.
+function bashQuote(str: string): string {
+  return "'" + str.replace(/'/g, "'\\''") + "'";
+}
+
+// Escape a string to be safely embedded in an AppleScript double-quoted string.
+// Only double-quotes need escaping; AppleScript does not treat backslash as an escape.
+function appleScriptEscape(str: string): string {
+  return str.replace(/"/g, '\\"');
+}
+
+// Build the shell command: cd to the session's project dir, then exec claude.
+// Uses login shell invocation (-l) so the user's PATH is loaded.
+// Falls back to exec without cd if cwd is unknown.
+function makeShellArgs(sessionId: string, cwd: string): [string, string, string, string] {
+  const cdPart = cwd ? `cd ${bashQuote(cwd)} && ` : "";
+  return ["-l", "-c", `${cdPart}exec claude --resume ${sessionId}`] as unknown as [string, string, string, string];
+}
+
 // Allowlist of known terminal emulators with their argument style.
 // Using spawn (not exec) with explicit arg arrays — no shell interpolation.
+// All terminals wrap the command in `bash -l -c` to ensure PATH is populated.
 // macOS .app bundles are launched via osascript with a preCheck to confirm the bundle exists.
 const TERMINAL_CANDIDATES: TerminalCandidate[] = [
   // Cross-platform
-  { bin: "ghostty",         args: (id) => ["-e", "claude", "--resume", id] },
-  { bin: "alacritty",       args: (id) => ["-e", "claude", "--resume", id] },
-  { bin: "kitty",           args: (id) => ["claude", "--resume", id] },
-  { bin: "wezterm",         args: (id) => ["start", "--", "claude", "--resume", id] },
-  { bin: "tabby",           args: (id) => ["run", "claude", "--resume", id] },
+  { bin: "ghostty",             args: (id, cwd) => ["-e", "bash", ...makeShellArgs(id, cwd)] },
+  { bin: "alacritty",           args: (id, cwd) => ["-e", "bash", ...makeShellArgs(id, cwd)] },
+  { bin: "kitty",               args: (id, cwd) => ["bash", ...makeShellArgs(id, cwd)] },
+  { bin: "wezterm",             args: (id, cwd) => ["start", "--", "bash", ...makeShellArgs(id, cwd)] },
+  { bin: "tabby",               args: (id, cwd) => ["run", "bash", ...makeShellArgs(id, cwd)] },
   // Linux
-  { bin: "gnome-terminal",  args: (id) => ["--", "claude", "--resume", id] },
-  { bin: "konsole",         args: (id) => ["-e", "claude", "--resume", id] },
-  { bin: "x-terminal-emulator", args: (id) => ["-e", "claude", "--resume", id] },
-  { bin: "xterm",           args: (id) => ["-e", "claude", "--resume", id] },
-  // macOS — sessionId is UUID-validated (hex + hyphens), safe to include in AppleScript string
+  { bin: "gnome-terminal",      args: (id, cwd) => ["--", "bash", ...makeShellArgs(id, cwd)] },
+  { bin: "konsole",             args: (id, cwd) => ["-e", "bash", ...makeShellArgs(id, cwd)] },
+  { bin: "x-terminal-emulator", args: (id, cwd) => ["-e", "bash", ...makeShellArgs(id, cwd)] },
+  { bin: "xterm",               args: (id, cwd) => ["-e", "bash", ...makeShellArgs(id, cwd)] },
+  // macOS — shell command is embedded in an AppleScript double-quoted string.
+  // bashQuote handles single-quotes in paths; appleScriptEscape handles double-quotes.
   {
     bin: "osascript",
     preCheck: () => appBundleExists("/Applications/iTerm.app"),
-    args: (id) => ["-e", `tell application "iTerm" to create window with default profile command "claude --resume ${id}"`],
+    args: (id, cwd) => {
+      const cmd = appleScriptEscape(`bash -l -c ${bashQuote(`${cwd ? `cd ${bashQuote(cwd)} && ` : ""}exec claude --resume ${id}`)}`);
+      return ["-e", `tell application "iTerm" to create window with default profile command "${cmd}"`];
+    },
   },
   {
     bin: "osascript",
     preCheck: () => appBundleExists("/Applications/Utilities/Terminal.app"),
-    args: (id) => ["-e", `tell application "Terminal" to do script "claude --resume ${id}"`],
+    args: (id, cwd) => {
+      const cmd = appleScriptEscape(`bash -l -c ${bashQuote(`${cwd ? `cd ${bashQuote(cwd)} && ` : ""}exec claude --resume ${id}`)}`);
+      return ["-e", `tell application "Terminal" to do script "${cmd}"`];
+    },
   },
 ];
 
@@ -111,11 +138,11 @@ function trySpawnTerminal(bin: string, args: string[]): Promise<void> {
   });
 }
 
-async function launchInTerminal(sessionId: string): Promise<void> {
+async function launchInTerminal(sessionId: string, cwd: string): Promise<void> {
   for (const { bin, args, preCheck } of TERMINAL_CANDIDATES) {
     if (preCheck && !(await preCheck())) continue;
     try {
-      await trySpawnTerminal(bin, args(sessionId));
+      await trySpawnTerminal(bin, args(sessionId, cwd));
       return;
     } catch {
       // Try next terminal
@@ -154,7 +181,8 @@ router.post("/:sessionId/launch", async (req, res) => {
       return;
     }
 
-    await launchInTerminal(sessionId);
+    const cwd = session.project !== "(unknown project)" ? session.project : "";
+    await launchInTerminal(sessionId, cwd);
     res.json({ ok: true });
   } catch (error) {
     console.error(error);
